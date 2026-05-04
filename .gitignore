@@ -1,0 +1,11 @@
+.env
+.claude/
+venv/
+__pycache__/
+*.pyc
+# output files — not tracked
+prompt.csv
+eval.csv
+*.json
+# keep data/questions.csv tracked
+

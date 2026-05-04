@@ -1,0 +1,1852 @@
+id,category,difficulty,language,source_url,question_text,accepted_answer
+Q01,debugging,beginner,python,http://stackoverflow.com/questions/75956209/error-dataframe-object-has-no-attribute-append,"I am trying to append a dictionary to a DataFrame object, but I get the following error:
+
+AttributeError: 'DataFrame' object has no attribute 'append'
+
+As far as I know, DataFrame does have the method ""append"".
+
+Code snippet:
+
+df = pd.DataFrame(df).append(new_row, ignore_index=True)
+I was expecting the dictionary new_row to be added as a new row.
+
+How can I fix it?","As of pandas 2.0, append (previously deprecated) was removed.
+
+You need to use concat instead (for most applications):
+
+df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+As noted by @cottontail, it's also possible to use loc, although this only works if the new index is not already present in the DataFrame (typically, this will be the case if the index is a RangeIndex:
+
+df.loc[len(df)] = new_row # only use with a RangeIndex!
+Why was it removed?
+We frequently see new users of pandas try to code like they would do it in pure Python. They use iterrows to access items in a loop (see here why you shouldn't), or append in a way that is similar to python list.append.
+
+However, as noted in pandas' issue #35407, pandas's append and list.append are really not the same thing. list.append is in place, while pandas's append creates a new DataFrame:
+
+I think that we should deprecate Series.append and DataFrame.append. They're making an analogy to list.append, but it's a poor analogy since the behavior isn't (and can't be) in place. The data for the index and values needs to be copied to create the result.
+
+These are also apparently popular methods. DataFrame.append is around the 10th most visited page in our API docs.
+
+Unless I'm mistaken, users are always better off building up a list of values and passing them to the constructor, or building up a list of NDFrames followed by a single concat.
+
+As a consequence, while list.append is amortized O(1) at each step of the loop, pandas' append is O(n), making it inefficient when repeated insertion is performed.
+
+What if I need to repeat the process?
+Using append or concat repeatedly is not a good idea (this has a quadratic behavior as it creates a new DataFrame for each step).
+
+In such case, the new items should be collected in a list, and at the end of the loop converted to DataFrame and eventually concatenated to the original DataFrame.
+
+lst = []
+
+for new_row in items_generation_logic:
+    lst.append(new_row)
+
+# create extension
+df_extended = pd.DataFrame(lst, columns=['A', 'B', 'C'])
+# or columns=df.columns if identical columns
+
+# concatenate to original
+out = pd.concat([df, df_extended])"
+Q02,debugging,beginner,python,https://stackoverflow.com/questions/77442172/ssl-certificate-verify-failed-certificate-verify-failed-unable-to-get-local-is,"I'm working on scripts to connect to AWS from Win10. When I try to install a python module or execute a script I get the following error:
+
+[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1129)
+I've verified that the certificate in the environment path is defined so, besides that, I'm not sure what else to use to troubleshoot the issue.
+","Try this in the command line:
+
+pip install pip-system-certs
+I've been struggling with the CERTIFICATE_VERIFY_FAILED error as well when using the requests module. I tried installing certifi but that didn't help. The only solution to my problem was to install pip-system-certs. For some reason that allowed requests to access a local certificate.
+
+Also: requests.get(url, verify=False) is not recommended for production environment because you basically turn safety off."
+Q03,conceptual,intermediate,python,https://stackoverflow.com/questions/75804599/openai-api-how-do-i-count-tokens-before-i-send-an-api-request,"OpenAI's text models have a context length, e.g.: Curie has a context length of 2049 tokens.
+
+They provide max_tokens and stop parameters to control the length of the generated sequence. Therefore the generation stops either when stop token is obtained, or max_tokens is reached.
+
+The issue is: when generating a text, I don't know how many tokens my prompt contains. Since I do not know that, I cannot set max_tokens = 2049 - number_tokens_in_prompt.
+
+This prevents me from generating text dynamically for a wide range of text in terms of their length. What I need is to continue generating until the stop token.
+
+My questions are:
+
+How can I count the number of tokens in Python API so that I will set max_tokens parameter accordingly?
+Is there a way to set max_tokens to the max cap so that I won't need to count the number of prompt tokens?","As stated in the offic
+Given a text string (e.g., ""tiktoken is great!"") and an encoding (e.g., ""cl100k_base""), a tokenizer can split the text string into a list of tokens (e.g., [""t"", ""ik"", ""token"", "" is"", "" great"", ""!""]).
+
+Splitting text strings into tokens is useful because GPT models see text in the form of tokens. Knowing how many tokens are in a text string can tell you:
+
+whether the string is too long for a text model to process and
+how much an OpenAI API call costs (as usage is priced by token).
+Which encodings does OpenAI use for its models?
+As of April 2024, tiktoken supports 2 encodings used by OpenAI models (source 1, source 2):
+
+Encoding name	OpenAI models
+o200k_base	 GPT-4o models (gpt-4o)
+cl100k_base	 GPT-4 models (gpt-4)
+ GPT-3.5 Turbo models (gpt-3.5-turbo)
+ GPT Base models (davinci-002, babbage-002)
+ Embeddings models (text-embedding-ada-002, text-embedding-3-large, text-embedding-3-small)
+ Fine-tuned models (ft:gpt-4, ft:gpt-3.5-turbo, ft:davinci-002, ft:babbage-002)
+Note: The p50k_base and r50k_base encodings were used for models that are deprecated as of April 2024.
+
+What tokenizer libraries are out there?
+Official OpenAI libraries:
+
+Python: tiktoken
+3rd-party libraries:
+
+Python: GPT2TokenizerFast
+Node.js: tiktoken, gpt4-tokenizer, gpt3-tokenizer, gpt-3-encoder
+.NET / C#: tryAGI.Tiktoken, SharpToken, TiktokenSharp, GPT Tokenizer
+Java: jtokkit, gpt2-tokenizer-java
+PHP: GPT-3-Encoder-PHP
+How do I use tiktoken?
+Install or upgrade tiktoken: pip install --upgrade tiktoken
+Write the code to count tokens, where you have two options.
+OPTION 1: Search in the table above for the correct encoding for a given OpenAI model
+
+If you run get_tokens_1.py, you'll get the following output:
+
+9
+
+get_tokens_1.py
+
+import tiktoken
+
+def num_tokens_from_string(string: str, encoding_name: str) -> int:
+    encoding = tiktoken.get_encoding(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
+print(num_tokens_from_string(""Hello world, let's test tiktoken."", ""cl100k_base""))
+
+OPTION 2: Use tiktoken.encoding_for_model() to automatically load the correct encoding for a given OpenAI model
+
+If you run get_tokens_2.py, you'll get the following output:
+
+9
+
+get_tokens_2.py
+
+import tiktoken
+
+def num_tokens_from_string(string: str, encoding_name: str) -> int:
+    encoding = tiktoken.encoding_for_model(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
+print(num_tokens_from_string(""Hello world, let's test tiktoken."", ""gpt-3.5-turbo""))
+Note: If you take a careful look at the usage field in the OpenAI API response, you'll see that it reports 10 tokens used for an identical message. That's 1 token more than tiktoken. I still haven't figured out why. I tested this in the past. As @Jota mentioned in the comment below, there still seems to be a mismatch between the token usage reported by the OpenAI API response and tiktoken."
+Q04,debugging,beginner,python,https://stackoverflow.com/questions/79280838/after-uv-init-adding-script-to-project-scripts-does-not-work,"I created a new project with uv 0.5.7:
+
+uv init myproject
+cd myproject
+uv sync
+And my project looks like this:
+
+??? hello.py
+??? pyproject.toml
+??? README.md
+??? uv.lock
+At this point, the following works:
+
+uv run python hello.py
+uv run python -m hello
+I would like to make a script name um by adding the following to pyproject.toml:
+
+[project.scripts]
+um = ""hello:main""
+However, that script is not found when I run it:
+
+$ uv run um                                                                                                                                                                      [umbala:main:]
+error: Failed to spawn: `um`
+  Caused by: No such file or directory (os error 2)
+I need help to create this script, um. What did I miss?","You might be missing a build system. uv requires a defined build system to determine whether to install the current project in the virtualenv. Something like this should work:
+
+[build-system]
+requires = [""hatchling""]
+build-backend = ""hatchling.build""
+Using the entry point tables requires a build system to be defined. https://docs.astral.sh/uv/concepts/projects/config/#entry-points"
+Q05,debugging,intermediate,python,https://stackoverflow.com/questions/79290968/super-object-has-no-attribute-sklearn-tags,"I am encountering an AttributeError while fitting an XGBRegressor using RandomizedSearchCV from Scikit-learn. The error message states:
+
+'super' object has no attribute '__sklearn_tags__'.
+This occurs when I invoke the fit method on the RandomizedSearchCV object. I suspect it could be related to compatibility issues between Scikit-learn and XGBoost or Python version. I am using Python 3.12, and both Scikit-learn and XGBoost are installed with their latest versions.
+
+I attempted to tune the hyperparameters of an XGBRegressor using RandomizedSearchCV from Scikit-learn. I expected the model to fit the training data without issues and provide the best parameters after cross-validation.
+
+I also checked for compatibility issues, ensured the libraries were up-to-date, and reinstalled Scikit-learn and XGBoost, but the error persists.","Scikit-learn version 1.6.0 modified the API around its ""tags"", and that's the cause of this error. XGBoost made the necessary changes in version 2.1.4 (specifically in PR11021). In sklearn 1.6.1, the error was downgraded to a warning (to be returned to an error in 1.7). So you should be OK with any of:
+
+xgboost >=2.1.4
+sklearn >=1.6.1,<1.7, and expect DeprecationWarnings
+sklearn <1.6
+See also sklearn Issue#30479 and 1.6.1 release notes, and xgboost 2.1.4 release notes."
+Q06,conceptual,intermediate,python,https://stackoverflow.com/questions/75580832/why-is-pytorch-c-extension-much-slower-than-its-equivalent-numba-version,"I have been experimenting with various options to speed up some for-loop-heavy-logic in PyTorch. The two obvious options to do so are either using numba or writing a custom C++ extension.
+
+As an example I have picked a ""variable length delay line"" from digital signal processing. This can be written trivially but inefficiently using a plain Python for loop:
+
+def delay_line(samples, delays):
+    """"""
+    :param samples: Float tensor of shape (N,)
+    :param delays: Int tensor of shape (N,)
+    
+    The goal is basically to mix each `samples[i]` with the delayed sample
+    specified by a per-sample `delays[i]`.
+    """"""
+    for i in range(len(samples)):
+        delay = int(delays[i].item())
+        index_delayed = i - delay
+        if index_delayed < 0:
+            index_delayed = 0
+
+        samples[i] = 0.5 * (samples[i] + samples[index_delayed])
+Knowing how bad for loops perform in Python, my hope was that I can get significantly better performance by implementing the same in C++. Following the tutorial, I came up with this literal translation from Python to C++:
+
+void delay_line(torch::Tensor samples, torch::Tensor delays) {
+
+  int64_t input_size = samples.size(-1);
+
+  for (int64_t i = 0; i < input_size; ++i) {
+    int64_t delay = delays[i].item<int64_t>();
+    int64_t index_delayed = i - delay;
+    if (index_delayed < 0) {
+      index_delayed = 0;
+    }
+
+    samples[i] = 0.5 * (samples[i] + samples[index_delayed]);
+  }
+}
+I have also taken the Python function and wrapped it into various jit decorators to get numba and torchscript versions of that function (see my other answer for details on the numba wrapping). I then executed my benchmark for all the versions, also depending on whether tensors reside on the CPU or GPU. The results are rather surprising:
+
+????????????????????????????????????????????????
+? Method       ? Device   ?   Median time [ms] ?
+????????????????????????????????????????????????
+? plain_python ? CPU      ?             13.481 ?
+? torchscript  ? CPU      ?              6.318 ?
+? numba        ? CPU      ?              0.016 ?
+? cpp          ? CPU      ?              9.056 ?
+? plain_python ? GPU      ?             45.412 ?
+? torchscript  ? GPU      ?             47.809 ?
+? numba        ? GPU      ?              0.236 ?
+? cpp          ? GPU      ?             31.145 ?
+????????????????????????????????????????????????
+Notes: sample buffer size was fixed to 1024; results are medians of 100 executions to ignore artifacts from the initial jit overhead; input data creation and moving it to the device is excluded from the measurements; full benchmark script gist
+
+The most notable result: The C++ variant seems to be surprisingly slow. The fact that numba is two orders of magnitude faster indicates that the problem indeed can be solved faster. And the fact that the C++ variant is still pretty close to the know-to-be-slow Python for loop may indicate that something isn't quite right.
+
+I'm wondering what could explain the poor performance of the C++ extension. The first thing that comes to mind is missing optimization. However, I've made sure that the compilation uses optimization. Switching from -O2 to -O3 also didn't make a difference.
+
+To isolate the overhead of the pybind11 function call, I have replaced the C++ function with an empty body, i.e., just doing nothing. This reduced the time to 2-3 ?s, which means that the time really is spend in that particular function body.
+
+Any ideas why I'm observing such a poor performance, and is there anything I could do on the C++ side to match the performance of the numba implementation?
+
+Bonus question: Is it expected that the GPU versions are much slower than the CPU versions?","I realize that this is an older question, but I'd like to provide an answer for anyone who ends up here looking to improve the speed of their C++ extension. As mentioned in the github issue, the issue is that the torch::Tensor::operator[] is slower than you might expect as it needs to fetch the data and convert it to the relevant type, which is slower than your typical std::vector::operator[]. The solution is to access the raw data in the Tensor directly.
+
+For a contiguous Tensor such as in this case, that is not too difficult:
+
+#include <span>
+#include <torch/extension.h>
+
+void delay_line_forward(torch::Tensor samples, torch::Tensor delays) {
+
+  const int64_t input_size = samples.size(-1);
+
+  assert(samples.is_contiguous() && delays.is_contiguous());
+  std::span<float> samples_span(samples.data_ptr<float>(), input_size);
+  std::span<float> delays_span(delays.data_ptr<float>(), input_size);
+  
+  for (int64_t i = 0; i < input_size; ++i) {
+    int64_t delay = static_cast<int64_t>(delays_span[i]);
+    int64_t index_delayed = i - delay;
+    if (index_delayed < 0) {
+      index_delayed = 0;
+    }
+
+    samples_span[i] = 0.5 * (samples_span[i] + samples_span[index_delayed]);
+  }
+}
+And we can see that it has the desired effect (I was having issues with the GPU execution that I didn't feel like debugging, so I'm only showing CPU results):
+
+????????????????????????????????????????????????
+? Method       ? Device   ?   Median time [ms] ?
+????????????????????????????????????????????????
+? plain_python ? CPU      ?              6.077 ?
+? torchscript  ? CPU      ?              4.273 ?
+? numba        ? CPU      ?              0.007 ?
+? cpp          ? CPU      ?              0.002 ?
+????????????????????????????????????????????????
+Also as for why the GPU execution is so much slower, the problem is the code here is inherently serial, and CPU will always win out over GPU in serial execution. If this code could be parallelized using Tensor operators to run the operations as a batch, then I imagine you'd see the GPU really shine. However, I don't think that's possible since earlier operations affect later ones."
+Q07,debugging,beginner,python,https://stackoverflow.com/questions/78796828/i-got-this-error-oserror-winerror-193-1-is-not-a-valid-win32-application,"I trying to run an Python file today and got this error below! Anyone know what's issue and the solution to fix it?
+
+Traceback (most recent call last):
+  File ""C:\Users\Al PC\PycharmProjects\Fe\report_auto-final-v2.7.py"", line 60, in <module>
+    driver = webdriver.Chrome(service=chrome_service, options=options)  # ChromeDriverManager()
+  File ""C:\Users\Al PC\PycharmProjects\SocialMedia\venv\lib\site-packages\selenium\webdriver\chrome\webdriver.py"", line 45, in __init__
+    super().__init__(
+  File ""C:\Users\Al PC\PycharmProjects\SocialMedia\venv\lib\site-packages\selenium\webdriver\chromium\webdriver.py"", line 53, in __init__
+    self.service.start()
+  File ""C:\Users\Al PC\PycharmProjects\SocialMedia\venv\lib\site-packages\selenium\webdriver\common\service.py"", line 105, in start
+    self._start_process(self._path)
+  File ""C:\Users\Al PC\PycharmProjects\SocialMedia\venv\lib\site-packages\selenium\webdriver\common\service.py"", line 206, in _start_process
+    self.process = subprocess.Popen(
+  File ""C:\Users\Al PC\AppData\Local\Programs\Python\Python310\lib\subprocess.py"", line 966, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File ""C:\Users\Al PC\AppData\Local\Programs\Python\Python310\lib\subprocess.py"", line 1435, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+OSError: [WinError 193] %1 is not a valid Win32 application
+
+Process finished with exit code 1","If you construct the service like this:
+
+service = ChromeService(ChromeDriverManager().install())
+I noticed ChromeDriverManager().install() returns <path stuff>\chromedriver-win32\THIRD_PARTY_NOTICES.chromedriver instead of the chromedrive.exe.
+
+This works for me:
+
+chrome_install = ChromeDriverManager().install()
+
+folder = os.path.dirname(chrome_install)
+chromedriver_path = os.path.join(folder, ""chromedriver.exe"")
+
+service = ChromeService(chromedriver_path)"
+Q08,conceptual,intermediate,python,https://stackoverflow.com/questions/77935269/performance-results-differ-between-run-in-threadpool-and-run-in-executor-in/77941425#77941425,"Here's a minimal reproducible example of my FastAPI app. I have a strange behavior and I'm not sure I understand the reason.
+
+I'm using ApacheBench (ab) to send multiple requests as follows:
+
+ab -n 1000 -c 50 -H 'accept: application/json' -H 'x-data-origin: source' 'http://localhost:8001/test/async'
+FastAPI app
+
+import time
+import asyncio
+import enum
+from typing import Any
+
+from fastapi import FastAPI, Path, Body
+from starlette.concurrency import run_in_threadpool
+
+app = FastAPI()
+loop = asyncio.get_running_loop()
+def sync_func() -> None:
+    time.sleep(3)
+    print(""sync func"")
+
+async def sync_async_with_fastapi_thread() -> None:
+    await run_in_threadpool( time.sleep, 3)
+    print(""sync async with fastapi thread"")
+
+async def sync_async_func() -> None:
+    await loop.run_in_executor(None, time.sleep, 3)
+
+async def async_func() -> Any:
+    await asyncio.sleep(3)
+    print(""async func"")
+
+@app.get(""/test/sync"")
+def test_sync() -> None:
+    sync_func()
+    print(""sync"")
+
+@app.get(""/test/async"")
+async def test_async() -> None:
+    await async_func()
+    print(""async"")
+
+@app.get(""/test/sync_async"")
+async def test_sync_async() -> None:
+    await sync_async_func()
+    print(""sync async"")
+
+@app.get(""/test/sync_async_fastapi"")
+async def test_sync_async_with_fastapi_thread() -> None:
+    await sync_async_with_fastapi_thread()
+    print(""sync async with fastapi thread"")
+Here's the ApacheBench results:
+
+async with (asyncio.sleep) : *Concurrency Level: 50
+
+Time taken for tests: 63.528 seconds
+Complete requests: 1000
+Failed requests: 0
+Total transferred: 128000 bytes
+HTML transferred: 4000 bytes
+Requests per second: 15.74 [#/sec] (mean)
+Time per request: 3176.407 [ms] (mean)
+Time per request: 63.528 [ms] (mean, across all concurrent requests) Transfer rate: 1.97 [Kbytes/sec] received*
+sync (with time.sleep): Concurrency Level: 50
+
+*Time taken for tests: 78.615 seconds
+Complete requests: 1000
+Failed requests: 0
+Total transferred: 128000 bytes
+HTML transferred: 4000 bytes
+Requests per second: 12.72 [#/sec] (mean)
+Time per request: 3930.751 [ms] (mean)
+Time per request: 78.615 [ms] (mean, across all concurrent requests) Transfer rate: 1.59 [Kbytes/sec] received*
+sync_async (time sleep with run_in_executor) : *Concurrency Level: 50
+
+Time taken for tests: 256.201 seconds
+Complete requests: 1000
+Failed requests: 0
+Total transferred: 128000 bytes
+HTML transferred: 4000 bytes
+Requests per second: 3.90 [#/sec] (mean)
+Time per request: 12810.038 [ms] (mean)
+Time per request: 256.201 [ms] (mean, across all concurrent requests) Transfer rate: 0.49 [Kbytes/sec] received*
+sync_async_fastapi (time sleep with run_in threadpool): *Concurrency Level: 50
+
+Time taken for tests: 78.877 seconds
+Complete requests: 1000
+Failed requests: 0
+Total transferred: 128000 bytes
+HTML transferred: 4000 bytes
+Requests per second: 12.68 [#/sec] (mean)
+Time per request: 3943.841 [ms] (mean)
+Time per request: 78.877 [ms] (mean, across all concurrent requests) Transfer rate: 1.58 [Kbytes/sec] received*
+In conclusion, I'm experiencing a surprising disparity in results; especially, when using run_in_executor, where I'm encountering significantly higher average times (12 seconds). I don't understand this outcome.
+
+--- EDIT --- After AKX answer.
+
+Here the code working as expected: 
+import time
+import asyncio
+from anyio import to_thread
+
+to_thread.current_default_thread_limiter().total_tokens = 200
+loop = asyncio.get_running_loop()
+executor = ThreadPoolExecutor(max_workers=100)
+def sync_func() -> None:
+    time.sleep(3)
+    print(""sync func"")
+
+async def sync_async_with_fastapi_thread() -> None:
+    await run_in_threadpool( time.sleep, 3)
+    print(""sync async with fastapi thread"")
+
+async def sync_async_func() -> None:
+    await loop.run_in_executor(executor, time.sleep, 3)
+
+async def async_func() -> Any:
+    await asyncio.sleep(3)
+    print(""async func"")
+
+@app.get(""/test/sync"")
+def test_sync() -> None:
+    sync_func()
+    print(""sync"")
+
+@app.get(""/test/async"")
+async def test_async() -> None:
+    await async_func()
+    print(""async"")
+
+@app.get(""/test/sync_async"")
+async def test_sync_async() -> None:
+    await sync_async_func()
+    print(""sync async"")
+
+@app.get(""/test/sync_async_fastapi"")
+async def test_sync_async_with_fastapi_thread() -> None:
+    await sync_async_with_fastapi_thread()
+    print(""sync async with fastapi thread"")","Using run_in_threadpool()
+FastAPI is fully compatible with (and based on) Starlette, and hence, with FastAPI you get all of Starlette's features, such as run_in_threadpool(). Starlette's run_in_threadpool(), which uses anyio.to_thread.run_sync() behind the scenes, ""will run the sync blocking function in a separate thread to ensure that the main thread (where coroutines are run) does not get blocked""see this answer and AnyIO's Working with threads documentation for more details.
+
+Calling run_in_threadpool()which internally calls anyio.to_thread.run_sync(), and subsequently, AsyncIOBackend.run_sync_in_worker_thread()will return a coroutine that will then be awaited to get the eventual result of the sync function (e.g., result = await run_in_threadpool(...)), and hence, FastAPI will still work asynchronously (instead of calling that synchronous function directly in the event loop; in which case, it would block the event loop, and hence, block the main thread).
+
+As can be seen in Starlette's source code (link is given above), the run_in_threadpool() function simply looks like this (supporting both sequence and keyword arguments):
+
+async def run_in_threadpool(
+    func: typing.Callable[P, T], *args: P.args, **kwargs: P.kwargs
+) -> T:
+    if kwargs:  # pragma: no cover
+        # run_sync doesn't accept 'kwargs', so bind them in here
+        func = functools.partial(func, **kwargs)
+    return await anyio.to_thread.run_sync(func, *args)
+As described in AnyIO's documentation:
+
+Adjusting the default maximum worker thread count
+The default AnyIO worker thread limiter has a value of 40, meaning that any calls to to_thread.run_sync() without an explicit limiter argument will cause a maximum of 40 threads to be spawned. You can adjust this limit like this:
+
+from anyio import to_thread
+
+async def foo():
+    # Set the maximum number of worker threads to 60
+    to_thread.current_default_thread_limiter().total_tokens = 60
+Note
+
+AnyIOs default thread pool limiter does not affect the default thread pool executor on asyncio.
+
+Since FastAPI uses Startlette's concurrency module to run blocking functions in an external threadpool (the same threadpool is also used by FastAPI to run endpoints defined with normal def instead of async def, as described in this answer), the default value of the thread limiter, as shown above, is applied here as well, i.e., 40 threads maximumsee the relevant AsyncIOBackend.current_default_thread_limiter() method that returns the CapacityLimiter with the default number of threads. Hence, sending 50 requests simultaneously, as in your case, would lead to threadpool starvation, meaning that there wouldn't be enough threads available in the threadpool to handle all incoming requests concurrently.
+
+As described earlier, one could adjust that value, by increasing the number of threads, which might lead to an improvement in performance resultsalways depending on the number of requests to def endpoints (or async def endpoints that make calls to run_in_threadpool() inside) that your API is expected to serve concurrently. For instance, if you expect the API to serve no more than 50 requests at a time to such endpoints, then set the maximum number of threads to 50. Note that if, in addition to def endpoints, your FastAPI application uses synchronous/blocking background tasks and/or StreamingResponse's generators and/or Dependencies (synchronous/blocking functions refer to those defined with normal def instead of async def), or even UploadFile's async methods, such as await file.read()/await file.close()/etc. (which they all call the corresponding synchronous def file methods, using run_in_threadpool() behind the scenes), you could then increase the number of threads as required, as FastAPI actually runs all those functions in the same external threadpool as wellit is all explained in this answer in details.
+
+Note that using the approach below, which was described here, would have the same effect on adjusting the number of worker threads:
+
+from anyio.lowlevel import RunVar
+from anyio import CapacityLimiter
+
+RunVar(""_default_thread_limiter"").set(CapacityLimiter(60))
+But, it would be best to follow the approach provided by AnyIO's official documentation (as shown earlier). It is also a good idea to have this done when the application starts up, using a lifespan event handler, as demonstrated here.
+
+In the working example below, since the /sync endpoint is defined with normal def instead of async def, FastAPI will run it in a separate thread from the external threadpool and then await it, thus ensuring the event loop (and hence, the main thread and the entire server) does not get blocked due to the blocking operations (either blocking IO-bound or CPU-bound) that will be performed inside that endpoint.
+
+Working Example 1
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from anyio import to_thread
+import time
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):    
+    to_thread.current_default_thread_limiter().total_tokens = 60
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get(""/sync"")
+def test_sync() -> None:
+    time.sleep(3)
+    print(""sync"")
+
+
+@app.get('/get_available_threads')
+async def get_available_threads():
+    return to_thread.current_default_thread_limiter().available_tokens
+Using ApacheBench, you could test the example above as follows, which will send 1000 requests in total with 50 being sent simultaneously at a time (-n: Number of requests, -c : Number of concurrent requests):
+
+ab -n 1000 -c 50 ""http://localhost:8000/sync""
+While running a performance test on the example above, if you call the /get_available_threads endpoint from your browser, e.g., http://localhost:8000/get_available_threads, you would see that the amount of threads available is always 10 or above (since only 50 threads are used at a time in this test, but the thread limiter was set to 60), meaning that setting the maximum number of threads on AnyIO's thread limiter to a number that is well above your needs, like 200 as shown in some other answer and in your recent example, wouldn't bring about any improvements in the performance; on the contrary, you would end up with a number of threads ""sitting"" there without being used. As explained earlier, the number of maximum threads should depend on (1) the number of requests your API is expected to serve concurrently (i.e., number of calls to def endpoints, or async def endpoints that call run_in_threadpool() inside), (2) any additional blocking tasks/functions that would run in the threadpool by FastAPI itself under the hood, as well as (3) the server machine's resources available.
+
+The example below is the same as the one above, but instead of letting FastAPI itself to handle the blocking operation(s) inside the def endpoint (by running the def endpoint in the external threadpool and awaiting it), the endpoint is now defined with async def (meaning that FastAPI will run it directly in the event loop), and inside the endpoint, run_in_threadpool() (which returns an awaitable) is used to run the blocking operation (i.e., time.sleep() in the example). Performing a benchmark test on the example below would yield similar results to the previous example.
+
+Working Example 2
+from fastapi import FastAPI
+from fastapi.concurrency import run_in_threadpool
+from contextlib import asynccontextmanager
+from anyio import to_thread
+import time
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):    
+    to_thread.current_default_thread_limiter().total_tokens = 60
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get(""/sync_async_run_in_tp"")
+async def test_sync_async_with_run_in_threadpool() -> None:
+    await run_in_threadpool(time.sleep, 3)
+    print(""sync_async using FastAPI's run_in_threadpool"")
+
+
+@app.get('/get_available_threads')
+async def get_available_threads():
+    return to_thread.current_default_thread_limiter().available_tokens
+Using ApacheBench, you could test the example above as follows:
+
+ab -n 1000 -c 50 ""http://localhost:8000/sync_async_run_in_tp""
+Using loop.run_in_executor() with ThreadPoolExecutor
+When using asyncio's loop.run_in_executor()after obtaining the running event loop using asyncio.get_running_loop()one could pass None to the executor argument, which would lead to the default executor being used; that is, a ThreadPoolExecutor. Note that when calling loop.run_in_executor() and passing None to the executor argument, this does not create a new instance of a ThreadPoolExecutor every time you call, for instance, await loop.run_in_executor(None, time.sleep, 3). Instead, the default ThreadPoolExecutor is only initialized once the first time you do that, but for subsequent calls to loop.run_in_executor() with the executor argument set None, Python reuses that very same instance of ThreadPoolExecutor (hence, the default executor). This can been seen in the source code of loop.run_in_executor(). That means, the number of threads that can be created, when calling await loop.run_in_executor(None, ...), is limited to the default number of thread workers in the ThreadPoolExecutor class.
+
+As described in the documentation of ThreadPoolExecutorand as shown in its implementation hereby default, the max_workers argument is set to None, in which case, the number of worker threads is set based on the following equation: min(32, os.cpu_count() + 4) (In Python 3.13 this is changed to min(32, (os.process_cpu_count() or 1) + 4)). The os.cpu_count() function (see os.process_cpu_count() for Python 3.13 and later versions) reutrns the number of logical CPUs in the current system. As explained in this article, physical cores refers to the number of CPU cores provided in the hardware (e.g., the chips), while logical cores is the number of CPU cores after hyperthreading is taken into account. If, for instance, your machine has 4 physical cores, each with hyperthreading (most modern CPUs have this), then Python will see 8 CPUs and will allocate 12 threads (8 CPUs + 4) to the pool by default (Python limits the number of threads to 32 to ""avoid consuming surprisingly large resources on multi-core machines""; however, one could always adjust the max_workers argument on their own when using a custom ThreadPoolExecutor, instead of using the default one). You could check the default number of worker threads on your system as follows:
+
+import concurrent.futures
+
+# create a thread pool with the default number of worker threads
+pool = concurrent.futures.ThreadPoolExecutor()
+
+# report the number of worker threads chosen by default
+# Note: `_max_workers` is a protected variable and may change in the future
+print(pool._max_workers)
+Now, as shown in your original example, you are not using a custom ThreadPoolExecutor; instead, you are using the default ThreadPoolExecutor every time a request arrives, by calling await loop.run_in_executor(None, time.sleep, 3) (inside the sync_async_func() function, which is triggered by the /test/sync_async endpoint). Assuming your machine has 4 physical cores with hyperthreading enabled (as explained in the example earlier), then the default number of worker threads for the default ThreadPoolExecutor would be 12. That means, based on your original example and the /test/sync_async endpoint that triggers the await loop.run_in_executor(None, time.sleep, 3) function, your application could only handle 12 concurrent requests at a time. That is the main reason for the difference observed in the performance results when compared to using run_in_threadpool(), which comes with 40 allocated threads by default. Even though, in both cases, a threadpool starvation was caused when sending 50 requests simultaneously, the endpoint (in your example) that uses run_in_threadpool() performed better only because the default number of threads created was greater than the one used by the default ThreadPoolExecutor (in your other endpoint).
+
+One way to solve this is to create a new instance of ThreadPoolExecutor (on your own, instead of using the default executor) every time a request arrives and have it terminated once the task is completed (using the with statement), as shown below:
+
+import concurrent.futures
+import asyncio
+
+loop = asyncio.get_running_loop()
+with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+    await loop.run_in_executor(pool, time.sleep, 3)
+Although the above should wok just fine, it would be best to instantiate a ThreadPoolExecutor once at application startup, adjust the number of worker threads as needed, and reuse that executor when required. Having said that, if, for any reason, you ever encounter a memory leaki.e., memory that is no longer needed, but is not releasedafter tasks are completed when reusing a ThreadPoolExecutor (maybe due to external libraries that you might be using for that blocking task, which do not properly release the memory), you might find creating a new instance of ThreadPoolExecutor each time, as shown above, more suitable. Note, however, that if this was a ProcessPoolExecutor instead, creating and destroying many processes over and over could become computationally expensive. Creating and destroying too many threads could consume huge memory as well.
+
+Below is a complete working example, demonstrating how to create a reusable custom ThreadPoolExecutor. Calling the /get_active_threads endpoint from your browser, e.g., http://localhost:8000/get_active_threads, while running a performance test with ApacheBench (using 50 concurrent requests, as described in your question and as shown below), you would see that the number of active threads never goes above 51 (50 concurrent threads + 1, which is the main thread), despite setting the max_workers argument to 60 in the example below. This is simply because, in this performance test, the application is never required to serve more than 50 requests at the same time. Also, ThreadPoolExecutor won't spawn new threads, if idle threads are available (thus, saving resources)see the relevant implementation part. Hence, again, initializing the ThreadPoolExecutor with max_workers=100, as shown in your recent update, would be unecessary, if you never expect your FastAPI application to serve more than 50 requests at a time (to endpoints where that ThreadPoolExecutor is used).
+
+Working Example
+from fastapi import FastAPI, Request
+from contextlib import asynccontextmanager
+import concurrent.futures
+import threading
+import asyncio
+import time
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):    
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=60)
+    yield {'pool': pool}
+    pool.shutdown()
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get(""/sync_async"")
+async def test_sync_async(request: Request) -> None:
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(request.state.pool, time.sleep, 3)  
+    print(""sync_async"")
+
+
+@app.get('/get_active_threads')
+async def get_active_threads():
+    return threading.active_count()
+Using ApacheBench, you could test the example above as follows:
+
+ab -n 1000 -c 50 ""http://localhost:8000/sync_async""
+Final Notes
+In general, you should always aim at using asynchronous code (i.e., using async/await), wherever is possible, as async code, also known as coroutines, runs directly in the event loopthe event loop runs in a thread (typically the main thread) and executes all callbacks and Tasks in its thread. That means there is only one thread that can take a lock on the interpreter; thus, avoiding the additional overhead of context switching (i.e., the CPU jumping from one thread of execution to another). When dealing with sync blocking IO-bound tasks though, you could either (1) define your endpoint with def and let FastAPI handle it behind the scenes as described earlier, as well as in this answer, or (2) define your endpoint with async def and use run_in_threadpool() on your own to run that blocking task in a separate thread and await it, or (3) define your endpoint with async def and use asyncio's loop.run_in_executor() with a custom (preferably reusable) ThreadPoolExecutor, adjusting the number of worker threads as required. When required to perform blocking CPU-bound tasks, while running such tasks in a separate thread from an external threadpool and then awaiting them would successfully prevent the event loop from getting blocked, it wouldn't, however, provide the performance improvement you would expect from running code in parallel. Thus, for CPU-bound tasks, one may choose to use loop.run_in_executor() with ProcessPoolExecutor insteadrelevant example could be found in this answer (Note that when using processes in general, you need to explicitly protect the entry point with if __name__ == '__main__').
+
+To run tasks in the background, without waiting for them to complete, in order to proceed with executing the rest of the code in an endpoint, you could use FastAPI's BackgroundTasks, as shown here and here. If the background task function is defined with async def, FastAPI will run it directly in the event loop, whereas if it is defined with normal def, FastAPI will use run_in_threadpool() and await the returned coroutine (same concept as API endpoints). Another option when you need to run an async def function in the background, but not necessarily having it trigerred after returning a FastAPI response (which is the case in BackgroundTasks), is to use asyncio.create_task(), as shown in this answer and this answer. If you need to perform heavy background computation and you don't necessarily need it to be run by the same process, you may benefit from using other bigger tools such as Celery.
+
+Finally, regarding the optimal/maximum number of worker threads, I would suggest reading this article (have a look at this article as well for more details on ThreadPoolExecutor in general). As explained in the article:
+
+It is important to limit the number of worker threads in the thread pools to the number of asynchronous tasks you wish to complete, based on the resources in your system, or on the number of resources you intend to use within your tasks.
+
+Alternately, you may wish to increase the number of worker threads dramatically, given the greater capacity in the resources you intend to use.
+
+[...]
+
+It is common to have more threads than CPUs (physical or logical) in your system. The reason for this is that threads are used for IO-bound tasks, not CPU-bound tasks. This means that threads are used for tasks that wait for relatively slow resources to respond, like hard drives, DVD drives, printers, network connections, and much more.
+
+Therefore, it is not uncommon to have tens, hundreds and even thousands of threads in your application, depending on your specific needs. It is unusual to have more than one or a few thousand threads. If you require this many threads, then alternative solutions may be preferred, such as AsyncIO.
+
+Also, in the same article:
+
+Does the Number of Threads in the ThreadPoolExecutor Match the Number of CPUs or Cores?
+The number of worker threads in the ThreadPoolExecutor is not related to the number of CPUs or CPU cores in your system.
+
+You can configure the number of threads based on the number of tasks you need to execute, the amount of local system resources you have available (e.g., memory), and the limitations of resources you intend to access within your tasks (e.g., connections to remote servers).
+
+How Many Threads Should I Use?
+If you have hundreds of tasks, you should probably set the number of threads to be equal to the number of tasks.
+
+If you have thousands of tasks, you should probably cap the number of threads at hundreds or 1,000.
+
+If your application is intended to be executed multiple times in the future, you can test different numbers of threads and compare overall execution time, then choose a number of threads that gives approximately the best performance. You may want to mock the task in these tests with a random sleep operation.
+
+What Is the Maximum Number of Worker Threads in the ThreadPoolExecutor?
+There is no maximum number of worker threads in the ThreadPoolExecutor.
+
+Nevertheless, your system will have an upper limit of the number of threads you can create based on how much main memory (RAM) you have available.
+
+Before you exceed main memory, you will reach a point of diminishing returns in terms of adding new threads and executing more tasks. This is because your operating system must switch between the threads, called context switching. With too many threads active at once, your program may spend more time context switching than actually executing tasks.
+
+A sensible upper limit for many applications is hundreds of threads to perhaps a few thousand threads. More than a few thousand threads on a modern system may result in too much context switching, depending on your system and on the types of tasks that are being executed."
+Q09,debugging,beginner,python,https://stackoverflow.com/questions/76551067/how-to-create-a-langchain-doc-from-an-str,"I've searched all over langchain documentation on their official website but I didn't find how to create a langchain doc from a str variable in python so I searched in their GitHub code and I found this :
+
+  doc=Document(
+                page_content=""text"",
+                metadata={""source"": ""local""}
+            )
+
+PS: I added the metadata attribute
+then I tried using that doc with my chain:
+Memory and Chain:
+
+memory = ConversationBufferMemory(memory_key=""chat_history"", input_key=""human_input"")
+chain = load_qa_chain(
+    llm, chain_type=""stuff"", memory=memory, prompt=prompt
+)
+
+the call method:
+
+  chain({""input_documents"": doc, ""human_input"": query})
+prompt template:
+
+template = """"""You are a senior financial analyst analyzing the below document and having a conversation with a human.
+{context}
+{chat_history}
+Human: {human_input}
+senior financial analyst:""""""
+
+prompt = PromptTemplate(
+    input_variables=[""chat_history"", ""human_input"", ""context""], template=template
+)
+but I am getting the following error:
+
+AttributeError: 'tuple' object has no attribute 'page_content'
+
+when I tried to check the type and the page content of the Document object before using it with the chain I got this
+
+print(type(doc))
+<class 'langchain.schema.Document'>
+print(doc.page_content)
+""text""","This worked for me:
+
+from langchain.docstore.document import Document
+
+doc =  Document(page_content=""text"", metadata={""source"": ""local""})"
+Q10,debugging,intermediate,python,https://stackoverflow.com/questions/78949093/how-to-resolve-attributeerror-module-fiona-has-no-attribute-path,"I have a piece of code that was working fine until last week, but now it's failing with the following error:
+
+AttributeError: module 'fiona' has no attribute 'path'
+
+Ive ensured that all the necessary libraries are installed and imported. Does anyone have any ideas on what might be going wrong or how I can resolve this issue?
+
+Thanks!
+
+ pip install geopandas
+ pip install fiona
+
+ import geopandas as gpd
+ import fiona
+
+ countries = gpd.read_file(gpd.datasets.get_path(""naturalearth_lowres""))","TL;DR update to geopandas==0.14.4 OR pin fiona to version 1.9.6
+
+--
+
+It seems fiona recently upgraded to 1.10.0 (as of 2024-09-04 01:14 UTC) and that may have broken some older versions of geopandas, which only depend on fiona being higher than some version, not lower than.
+
+Upon closer look, geopandas up to version 0.14.3 still calls fiona.path, but in version 0.14.4 it no longer does.
+
+So upgrading geopandas to 0.14.4 should fix it.
+
+Alternatively, forcing fiona to stay on version 1.9.6 should also work.
+
+NOTE: upgrading geopandas to >=1.0 seems to remove fiona as a dependency altogether, so it will also solve this issue. But it opens up a whole new can of worms by removing geopandas.dataset"
+Q11,debugging,beginner,python,http://stackoverflow.com/questions/75608323/how-do-i-solve-error-externally-managed-environment-every-time-i-use-pip-3,"When I run pip install xyz on a Linux machine (using Debian or Ubuntu or a derived Linux distribution), I get this error:
+
+error: externally-managed-environment
+
+× This environment is externally managed
+??> To install Python packages system-wide, try apt install
+    python3-xyz, where xyz is the package you are trying to
+    install.
+
+    If you wish to install a non-Debian-packaged Python package,
+    create a virtual environment using python3 -m venv path/to/venv.
+    Then use path/to/venv/bin/python and path/to/venv/bin/pip. Make
+    sure you have python3-full installed.
+
+    If you wish to install a non-Debian packaged Python application,
+    it may be easiest to use pipx install xyz, which will manage a
+    virtual environment for you. Make sure you have pipx installed.
+
+    See /usr/share/doc/python3.11/README.venv for more information.
+
+note: If you believe this is a mistake, please contact your Python installation or OS distribution provider. You can override this, at the risk of breaking your Python installation or OS, by passing --break-system-packages.
+hint: See PEP 668 for the detailed specification.
+What does this error mean? How do I avoid it? Why doesn't pip install xyz work like it did before I upgraded my system using sudo apt upgrade?","The proper way to install Python libraries and applications is to install them in a Python virtual environment whenever possible (the exceptions to this rule are quite rare).
+
+The error message describes two common ways to accomplish this: either by creating a virtual environment yourself, or for applications, by using pipxa tool which will create a virtual environment for you and install the application in that virtual environment.
+
+pipx is strongly recommended for installing applications, i.e., when you will primarily use the installed code from the command line. On Debian systems and Debian-based systems such as Ubuntu, you can install pipx using apt, and then use pipx to install the application:
+
+apt install pipx
+pipx install some-python-application
+For libraries, i.e., when you will use the code primarily by importing it in your own projects. Typically, you should create a virtual environment yourself. You can do this with venv from the standard library:
+
+python -m venv my-venv
+my-venv/bin/pip install some-python-library
+See also this answer on a duplicate question for more details.
+
+(Commonly, your own project may need several libraries. Make one virtual environment and install the libraries that your project needs side by side in that virtual environment.)
+
+If you know you dont need to use your system long-term (e.g. because youre working in a container or CI environment like Docker or GitHub Actions), and you're still sure that you want to install packages ""system-wide"" and risk breaking your system (for example, by overwriting libraries that were part of tools written in Python that came with your system), Pip needs to be given permission to do so.
+
+There are a few ways to do this:
+
+For a single use of pip, add the --break-system-packages argument to the command.
+
+Add these lines to ~/.config/pip/pip.conf (this will enable every future run of Pip to break system packages:
+
+[global]
+break-system-packages = true
+Use Pip's config command to edit the above file (credit to The Matt from the comments):
+
+python3 -m pip config set global.break-system-packages true
+Theoretically, removing or renaming the ""marker"" file (/usr/lib/python3.x/EXTERNALLY-MANAGED) would also disable the block, but this is a bad idea. The file was put there for a reason, and it's at least as easy to use the intended mechanisms instead."
+Q12,debugging,beginner,python,https://stackoverflow.com/questions/76105218/why-does-tkinter-or-turtle-seem-to-be-missing-or-broken-shouldnt-it-be-part/76105219#76105219 ,"I have seen many different things go wrong when trying to use the Tkinter standard library package, or its related functionality (turtle graphics using turtle and the built-in IDLE IDE), or with third-party libraries that have this as a dependency (e.g. displaying graphical windows with Matplotlib).
+
+It seems that even when there isn't a problem caused by shadowing the name of the standard library modules (this is a common problem for beginners trying to follow a tutorial and use turtle graphics - example 1; example 2; example 3; example 4), it commonly happens that the standard library Tkinter just doesn't work. This is a big problem because, again, a lot of beginners try to follow tutorials that use turtle graphics and blindly assume that the turtle standard library will be present.
+
+The error might be reported:
+
+As ModuleNotFoundError: No module named 'tkinter'; or an ImportError with the same message; or with different casing (I am aware that the name changed from Tkinter in 2.x to tkinter in 3.x; that is a different problem).
+
+Similarly, but referring to an internal _tkinter module, and displaying code with a comment that says ""If this fails your Python may not be configured for Tk""; or with a custom error message that says ""please install the python-tk package"" or similar.
+
+As ""No module named turtle"" when trying to use turtle specifically, or one of the above errors.
+
+When trying to display a plot using Matplotlib; commonly, this will happen after trying to change the backend, which was set by default to avoid trying to use Tkinter.
+
+Why do problems like this occur, when Tkinter is documented as being part of the standard library? How can I add or repair the missing standard library functionality? Are there any special concerns for specific Python environments?
+
+See also: ""UserWarning: Matplotlib is currently using agg, which is a non-GUI backend, so cannot show the figure."" when plotting figure with pyplot on Pycharm . It is possible to use other GUI backends with Matplotlib to display graphs; but if the TkAgg backend does not work, that is because of a missing or faulty Tkinter install.
+
+In Python 3.x, the name of the Tkinter standard library module was corrected from Tkinter to tkinter (i.e., all lowercase) in order to maintain consistent naming conventions. Please use Difference between tkinter and Tkinter to close duplicate questions caused by trying to use the old name in 3.x (or the new name in 2.x). This question is about cases where Tkinter is not actually available. If it isn't clear which case applies, please either offer both duplicate links, or close the question as ""needs debugging details"".","WARNING: Do not use pip to try to solve the problem
+The Pip package manager cannot help to solve the problem. No part of the Python standard library - including tkinter, turtle, etc. - can be installed from PyPI. For security reasons, PyPI now blocks packages using names that match the standard library.
+
+There are many packages on PyPI that may look suitable, but are not. Most are simply wrappers that try to add a little functionality to the standard library Tkinter.
+
+Historically, one especially problematic package was turtle. Since 2017, it has been policy to block packages with names that match the standard library; but turtle was published in 2009 and never maintained. It was Python 2.x specific code that would break during installation on Python 3, that had nothing whatsoever to do with turtle graphics.
+
+Shortly before the original draft of this Q&A, I put in a request to get the turtle package delisted from PyPI. As of November 15, 2024 (I somehow didn't get a notification), the turtle package has been removed from PyPI and the name is blocked following current policy.
+
+Why some Python installations don't include Tkinter components
+There are several reasons why Tkinter might be missing, depending on the platform (although generally, the motivation is probably just to save space).
+
+When Python is installed on Windows using the official installer, there is an option to include or exclude Tcl/Tk support.
+
+Python installations that come preinstalled with Linux may exclude Tkinter, or various components, according to the distro maintainer's policy. For example, the Python that came with my copy of Linux included the turtle standard library, but not the underlying Tkinter package:
+
+>>> import turtle
+Traceback (most recent call last):
+  File ""<stdin>"", line 1, in <module>
+  File ""/usr/lib/python3.8/turtle.py"", line 107, in <module>
+    import tkinter as TK
+ModuleNotFoundError: No module named 'tkinter'
+Other builds might not include the turtle module either.
+
+Python built from source might be missing Tkinter support because of deliberately chosen configuration options, or because dependencies were missing before starting compilation.
+
+Note that virtual environments will generally have the same Tkinter support as the Python installation they're based upon. However, adding Tkinter support to the base might not update the virtual environment. In this case, it will be necessary to recreate the virtual environment from scratch. It is not possible to add or remove Tkinter support for an individual virtual environment. This is because a virtual environment only differs from its base in terms of the site packages, and there is no site package for Tkinter (since, again, it is a standard library component that cannot be obtained using Pip).
+
+How to add Tkinter support, depending on the environment
+See also:
+
+Guide in the official Tk documentation: https://tkdocs.com/tutorial/install.html
+Some previous (now duplicate) versions of the question with some useful answers:
+Install tkinter for Python
+Tkinter: ""Python may not be configured for Tk""
+ImportError: No module named 'Tkinter'
+Windows
+For Python installed using the official installer from python.org, use the operating system features to choose to ""repair"" the installation (or, if acceptable, uninstall and reinstall Python). This time, make sure to check the option to install the ""tcl/tk and IDLE"" optional feature.
+
+Some legacy setups may have had issues with conflicts between 32- and 64-bit versions of Python and Tcl/Tk. This should not cause problems on new setups.
+
+For the embeddable zip package, see Python embeddable zip: install Tkinter.
+
+Linux: Python that came with the Linux distribution
+If the Python that came with your Linux distribution doesn't include Tkinter, consider leaving that alone and installing a separate version of Python - just on general principle. However, in general, Tkinter support can be added to the system Python using the system package manager (not Pip).
+
+It will typically be necessary to use sudo (not included in examples here) to make such changes to the system Python.
+
+On Ubuntu and Debian based systems (including Pop!_OS, Ubuntu-based Linux Mint): use apt-get install python3-tk, assuming the system Python is a 3.x version. For 2.x legacy systems, use apt-get install python-tk instead. In some cases it may be necessary to specify a minor version, like apt-get install python3.11-tk. In some cases, a custom exception message may say to install python-tk even though python3-tk should actually be installed instead.
+
+For Fedora, use dnf install python3-tkinter, as described by d-coder here.
+
+For Arch Linux, use pacman -S tk, as described by Jabba here.
+
+For RHEL, use yum install python3-tkinter, as described by amzy-0 here.
+
+Linux: Python built from source
+The above packages can only add Tkinter support to the system python (the one installed in /usr/bin, which is used by the operating system to run essential scripts). They cannot add Tkinter support to a separate Python built from source. This is because, in addition to the actual Tcl/Tk library, using Tkinter in Python requires a per-installation ""binding"" library (referred to as _tkinter in the Python source code). System packages will not add this library to other Python installations.
+
+Therefore, install a development Tk package first (e.g., apt-get install tk-dev) and try rebuilding.
+
+See also:
+
+Unable to install Tkinter with pyenv Python instances on macOS (using pyenv)
+
+Install tkinter and the Python interpreter locally (in case sudo privileges are not available)
+
+Building Python and more on missing modules (more generally about rebuilding Python from source and filling in development dependencies)
+
+Homebrew (typically macOS)
+Use brew install python-tk; if necessary, specify a Python version like brew install python-tk@3.11.
+
+For non-system installations, it may be necessary to reinstall and specify that Tkinter support should be included, like brew install python --with-tcl-tk. See also: Why does Python installed via Homebrew not include Tkinter?
+
+Headless environments
+It's generally not possible to install Tkinter - or any other GUI toolkit - for headless server environments like PythonAnywhere or Amazon Linux EC2. The code will run on a remote server, so there is no monitor to display the GUI; while it would be possible in principle for the code to send commands back to the client that the client could then use to create a GUI, in general the server will have no knowledge of the client's environment. Making this work would require setting up some communication protocol ahead of time (such as X11).
+
+Virtual environments
+First, fix the installation that the virtual environment is based upon. If this doesn't resolve the problem, re-create the virtual environment (and reinstall everything that was installed in the old virtual environment). Unfortunately, there is not a clean way around this. It might be possible to patch around the problem by changing a bunch of symlinks, but this is not supported.
+
+If it is not possible to fix the base installation (for example, due to not having sudo rights on the system), consider installing a separate Python (for example, by compiling from source), ensuring that it is installed with Tkinter support, and creating virtual environments from that Python.
+
+Additional hints: TKinter in a Virtualenv
+
+Tkinter components
+Some users will find it useful to understand exactly what the Tkinter system contains. There are several components:
+
+The underlying Tcl/Tk library, written in C. Some systems may independently have a Tcl/Tk installation that is unusable from Python by default.
+
+The _tkinter implementation module, which is also written in C and which interfaces between Python and Tcl/Tk (""tkinter"" means ""Tk interface""). This is an implementation detail, and should not be imported directly in Python user code. (the C code for this dates all the way back to 1994!)
+
+The tkinter package itself, which provides wrappers for the lower-level _tkinter interface, as well as ttk (a separate interface for newer ""themed"" widgets).
+
+Higher-level components, such as IDLE and turtle.
+
+Any given installation could theoretically be missing any or all of these components. For system installations of Python on Linux and macOS, the distro maintainer is responsible for making sure that the appropriate package (python3-tk or similar) installs whichever parts are missing by default, to the appropriate places.
+
+As explained to me on GitHub by Terry Jan Reedy: when the Windows installer is told to install Tcl/Tk, it will install a separate copy of that library (and the corresponding _tkinter and tkinter etc.) for that Python installation. On Linux, Tcl/Tk will normally come with Linux; packages like python3-tk will add a _tkinter that uses the system Tcl/Tk, and a tkinter package (which will naturally find and use the _tkinter implementation, using the normal import mechanism).
+
+Since the Tcl/Tk installation is thus ""vendored"" for Windows, the Tcl/Tk version will depend on the Python version. On Linux it will depend on the system, and it should be possible to use the system package manager to upgrade Tcl/Tk independently of Python. Note in particular that newer versions of Python might not be able to work with an outdated system Tcl/Tk. "
+Q13,debugging,beginner,python,https://stackoverflow.com/questions/76727774/selenium-webdriver-chrome-115-stopped-working,"I have Chrome 115.0.5790.99 installed on Windows, and I use Selenium 4.10.0. In my Python code, I call service = Service(ChromeDriverManager().install()) and it returns the error:
+
+ValueError: There is no such driver by url [sic] https://chromedriver.storage.googleapis.com/LATEST_RELEASE_115.0.5790.
+
+I use ChromeDriverManager().install() in order to ensure the use of last stable version of webdriver. How to solve the issue?
+
+My simple code:
+
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+import time
+
+# Install Webdriver
+service = Service(ChromeDriverManager().install())
+
+# Create Driver Instance
+driver = webdriver.Chrome(service=service)
+
+# Get Web Page
+driver.get('https://www.crawler-test.com')
+time.sleep(5)
+driver.quit()
+Error output:
+
+Traceback (most recent call last):
+  File ""C:\Users\Administrator\Documents\...\test.py"", line 7, in <module>
+    service = Service(ChromeDriverManager().install())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\Administrator\AppData\Local\Programs\Python\Python311\Lib\site-packages\webdriver_manager\chrome.py"", line 39, in install
+    driver_path = self._get_driver_path(self.driver)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\Administrator\AppData\Local\Programs\Python\Python311\Lib\site-packages\webdriver_manager\core\manager.py"", line 30, in _get_driver_path
+    file = self._download_manager.download_file(driver.get_driver_download_url())
+                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\Administrator\AppData\Local\Programs\Python\Python311\Lib\site-packages\webdriver_manager\drivers\chrome.py"", line 40, in get_driver_download_url
+    driver_version_to_download = self.get_driver_version_to_download()
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\Administrator\AppData\Local\Programs\Python\Python311\Lib\site-packages\webdriver_manager\core\driver.py"", line 51, in get_driver_version_to_download
+    self._driver_to_download_version = self._version if self._version not in (None, ""latest"") else self.get_latest_release_version()
+                                                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\Administrator\AppData\Local\Programs\Python\Python311\Lib\site-packages\webdriver_manager\drivers\chrome.py"", line 62, in get_latest_release_version
+    resp = self._http_client.get(url=latest_release_url)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""C:\Users\Administrator\AppData\Local\Programs\Python\Python311\Lib\site-packages\webdriver_manager\core\http.py"", line 37, in get
+    self.validate_response(resp)
+  File ""C:\Users\Administrator\AppData\Local\Programs\Python\Python311\Lib\site-packages\webdriver_manager\core\http.py"", line 16, in validate_response
+    raise ValueError(f""There is no such driver by url {resp.url}"")
+ValueError: There is no such driver by url https://chromedriver.storage.googleapis.com/LATEST_RELEASE_115.0.5790
+I tried the following but no success:
+
+to disable Chrome auto-update, but Chrome manages to update itself anyway (https://www.minitool.com/news/disable-automatic-chrome-updates.html and https://www.webnots.com/7-ways-to-disable-automatic-chrome-update-in-windows-and-mac);
+to install Chrome 114 and webdriver for version 114, than it works till Chrome get updated automatically;
+to follow instructions https://chromedriver.chromium.org/downloads/version-selection but when generating URL and running link https://chromedriver.storage.googleapis.com/LATEST_RELEASE_115.0.5790 I get error No such object: chromedriver/LATEST_RELEASE_115.0.5790
+How can I solve the issue till webdriver for Chrome 115 will be finally released at the download location?","Selenium Manager is now fully included with selenium 4.10.0 (and newer), so this is all you need:
+
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+
+service = Service()
+options = webdriver.ChromeOptions()
+driver = webdriver.Chrome(service=service, options=options)
+# ...
+driver.quit()
+If the driver isn't found on your system PATH, Selenium Manager will automatically download it.
+
+If you're wondering why you're now seeing this error for ChromeDriverManager, it's because developer.chrome.com/docs/chromedriver/downloads only goes up to version 114 due to driver restructuring by the Chromium Team for the new Chrome-for-Testing."
+Q14,implementation,intermediate,python, https://stackoverflow.com/questions/76322463/how-to-initialize-a-global-object-or-variable-and-reuse-it-in-every-fastapi-endp ,"I am having a class to send notifications. When being initialized, it involves making a connection to a notification server, which is time-consuming. I use a background task in FastAPI to send notifications, as I don't want to delay the response due to the notification. Below is the sample code:
+
+file1.py
+
+noticlient = NotificationClient()
+
+@app.post(""/{data}"")
+def send_msg(somemsg: str, background_tasks: BackgroundTasks):
+    result = add_some_tasks(data, background_tasks, noticlient)
+    return result
+file2.py
+
+def add_some_tasks(data, background_tasks: BackgroundTasks, noticlient):
+    background_tasks.add_task(noticlient.send, param1, param2)
+    result = some_operation
+    return result
+Here, the notification client is declared globally. I could have it initialized in file2.py, under add_some_tasks, but it would get initialized every time a request arrives, and that would require some time. Is there any way to use a middleware to re-use it every time a request arrives, so that it doesn't need to be initialized every time?
+
+Or, another approach might be to initialize notification in class definition:
+
+file1.py
+
+class childFastApi(FastAPI):
+    noticlient = NotificationClient()
+
+app = childFastApi()
+
+@app.post(""/{data}"")
+def send_msg(somemsg: str, background_tasks: BackgroundTasks):
+    result = add_some_tasks(data, background_tasks, app.noticlient)
+    return result","Option 1
+You could store the custom class object to the app instance, which could be used to store arbitrary extra state using the generic app.state attribute, as demonstrated here, as well as here and here. To access the app.state dictionaryand subsequently the variable/object that you had stored to stateoutside the main application file (for instance, accessing it from a routers submodule that uses APIRouter), you could use the Request object, as demonstrated in this answer (i.e., using request.app.state). You could either use a startup event (as shown here) to initialize the object, but since it is now deprecated (and might be removed from future versions), you could instead use a lifespan handler function.
+
+Example
+from fastapi import FastAPI, Request
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    ''' Run at startup
+        Initialize the Client and add it to app.state
+    '''
+    app.state.n_client = NotificationClient()
+    yield
+    ''' Run on shutdown
+        Close the connection
+        Clear variables and release the resources
+    '''
+    app.state.n_client.close()
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get('/')
+async def main(request: Request):
+    n_client = request.app.state.n_client
+    # ...
+Option 2
+Since the introduction of Starlette's lifespan handler, which, similar to startup and shutdown event handlers, allows one to define code that needs to run before the application starts up, and/or when the application is shutting down, one could also define objects to be accessible from request.state (which is recommended over app.state). As per Starlette's documentation:
+
+The lifespan has the concept of state, which is a dictionary that can be used to share the objects between the lifespan, and the requests.
+
+The state received on the requests is a shallow copy of the state received on the lifespan handler.
+
+Hence, after instantiating the class object in the lifespan handler, you could then add it to the state dictionary, and later access it within the various endpointseven those defined in APIRouters outside the main application fileusing request.state.
+
+Example
+from fastapi import FastAPI, Request
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    ''' Run at startup
+        Initialize the Client and add it to request.state
+    '''
+    n_client = NotificationClient()
+    yield {'n_client': n_client}
+    ''' Run on shutdown
+        Close the connection
+        Clear variables and release the resources
+    '''
+    n_client.close()
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get('/')
+async def main(request: Request):
+    n_client = request.state.n_client
+    # ...
+Important Note
+Even though app.state and request.state are not meant to be used for storing variables/objects that are expected to be modified by every request, there might be cases, however, such as in a simple (single-user) application, that might be more convenient for the developer to utilize the state as such (even though not really recommended) than setting up some persistent storage (Note, however, that in a multi-user application, where multiple users could have concurrent or parallel access to the same variable/object, using the state for such purposes might not be a wise choice, and one should rather look into thread-safe solutions, as mentioned in this answer, for instance).
+
+In such cases, i.e., when using requst.state to store a variable/object that is expected to be modified by the various requests arriving at the API, one should store a str/int/float/etc. variable into dict or list objects instead of storing them directly to the state. The reason is simply because, as mentioned earlier, ""the state received on the requests is a shallow copy of the state received on the lifespan handler"" (the relevant uvicorn implementation part may be found here). A shallow copy, as described in Python's documentation, ""constructs a new compound object and then inserts references into it to the objects found in the original"". A shallow copy is only relevant for compound objects, i.e., objects that contain other objects, such as list, dict or class instances. Hence, str/int/float/etc. objects stored directly to the state cannot be changed; thus, any changes made to them in the new (copied) object would not be reflected in the original object, in contrast to compound objects described earlier. For the sake of completeness, it should be noted that changes made to str/int/float/etc. objects stored directly to app.state would actually be applied (compared to request.state), as app.state is the original object itself and not a shallow copy that is received on every request, as in the case of request.state.
+
+A simple example demonstrating what has been explained above can be found below.
+
+Example
+app.py
+
+from fastapi import FastAPI, Request
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield {""data"": {""val"": 1}}
+    #yield {""val"": 1}  # changes to `val` would not take effect globally
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get('/set')
+async def set(request: Request):
+    #request.state.val = 2  # changes to `val` would not take effect globally
+    request.state.data[""val""] = 2
+    return request.state
+
+
+@app.get(""/get"")
+async def get(request: Request):
+    return request.state
+test.py
+
+import httpx
+
+r = httpx.get(url=""http://127.0.0.1:8000/get"")
+print(r.json())
+#{'_state': {'data': {'val': 1}}}
+
+r = httpx.get(url=""http://127.0.0.1:8000/set"")
+print(r.json())
+#{'_state': {'data': {'val': 2}}}
+
+r = httpx.get(url=""http://127.0.0.1:8000/get"")
+print(r.json())
+#{'_state': {'data': {'val': 2}}}"
+Q15,implementation,intermediate,python,https://stackoverflow.com/questions/75459172/loading-a-huggingface-model-on-multiple-gpus-using-model-parallelism-for-inferen,"I have access to six 24GB GPUs. When I try to load some HuggingFace models, for example the following
+
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+tokenizer = AutoTokenizer.from_pretrained(""google/ul2"")
+model = AutoModelForSeq2SeqLM.from_pretrained(""google/ul2"")
+I get an out of memory error, as the model only seems to be able to load on a single GPU. However, while the whole model cannot fit into a single 24GB GPU card, I have 6 of these and would like to know if there is a way to distribute the model loading across multiple cards, to perform inference.
+
+HuggingFace seems to have a webpage where they explain how to do this but it has no useful content as of today.","When you load the model using from_pretrained(), you need to specify which device you want to load the model to. Thus, add the following argument, and the transformers library will take care of the rest:
+
+model = AutoModelForSeq2SeqLM.from_pretrained(""google/ul2"", device_map = 'auto')
+
+Passing ""auto"" here will automatically split the model across your hardware in the following priority order: GPU(s) > CPU (RAM) > Disk.
+
+Of course, this answer assumes you have cuda installed and your environment can see the available GPUs. Running nvidia-smi from a command-line will confirm this. Please report back if you run into further issues."
+Q16,implementation,beginner,python,https://stackoverflow.com/questions/79118841/how-can-i-migrate-from-poetry-to-uv-package-manager,"I'm planning to switch from poetry to the uv Python package manager, but I can't find any migration guides. Currently, I'm using Poetry and already have a pyproject.toml file.
+
+What key(s) should be modified or added to migrate properly to uv?
+
+Heres the current pyproject.toml structure:
+
+[tool.poetry]
+name = ""name""
+version = ""1.6.0""
+description = """"
+authors = [
+    ""..."",
+]
+maintainers = [
+    ""..."",
+]
+readme = ""README.md""
+
+[tool.poetry.dependencies]
+python = ""^3.12""
+fastapi = ""^0.115.2""
+uvicorn = { version = ""^0.32.0"", extras = [""standard""] }
+pydantic = ""^2.5.3""
+pydantic-settings = ""^2""
+
+[tool.poetry.group.dev.dependencies]
+pytest = ""^8.3.3""
+flake8 = ""~7.1.1""
+mypy = ""^1.12""
+
+[tool.isort]
+profile = ""black""
+multi_line_output = 3
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    ""error"",
+    ""ignore::DeprecationWarning"",
+    ""ignore:.*unclosed.*:ResourceWarning"",
+]
+env = [
+    ""...=..."",
+    ""...=..."",
+]
+
+[tool.coverage.run]
+omit = [
+    ""...=..."",
+    ""...=..."",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    ""pragma: no cover"",
+    ""if TYPE_CHECKING"",
+]
+
+[build-system]
+requires = [""poetry-core>=1.0.0""]
+build-backend = ""poetry.core.masonry.api""
+Additionally, in the [build-system] section, I currently have poetry-core. Should this be replaced with something specific for uv during the migration?","Another very recently released tool is migrate-to-uv. Run:
+
+uvx migrate-to-uv
+to migrate from Poetry or pipenv to uv. This will rewrite your pyproject.toml file and remove poetry.lock. You still need to uv lock afterwards.
+"
+Q17,debugging,intermediate,python,http://stackoverflow.com/questions/77969964/deprecation-warning-with-groupby-apply/78100669#78100669,"I have a python script that reads in data from a csv file
+
+The code runs fine, but everytime it runs I get this Deprecation message:
+
+DeprecationWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+the warning stems from this piece of code:
+
+fprice = df.groupby(['StartDate', 'Commodity', 'DealType']).apply(lambda group: -(group['MTMValue'].sum() - (group['FixedPriceStrike'] * group['Quantity']).sum()) / group['Quantity'].sum()).reset_index(name='FloatPrice')
+to my understanding, I am performing the apply function on my groupings,but then I am disregarding the groupings and not using them anymore to be apart of my dataframe. I am confused about the directions to silence the warning
+
+here is some sample data that this code uses:
+
+TradeID  TradeDate  Commodity  StartDate   ExpiryDate FixedPrice Quantity MTMValue
+-------- ---------- ---------  ---------   ---------- ---------- -------- ---------
+ aaa   01/01/2024   (com1,com2) 01/01/2024  01/01/2024    10        10      100.00 
+ bbb   01/01/2024   (com1,com2) 01/01/2024  01/01/2024    10        10      100.00 
+ ccc   01/01/2024   (com1,com2) 01/01/2024  01/01/2024    10        10      100.00  
+and here is the expected output from this data:
+
+TradeID  TradeDate  Commodity  StartDate   ExpiryDate FixedPrice Quantity MTMValue  FloatPrice
+-------- ---------- ---------  ---------   ---------- ---------- -------- --------- ----------
+ aaa   01/01/2024   (com1,com2) 01/01/2024  01/01/2024    10        10      100.00      0
+ bbb   01/01/2024   (com1,com2) 01/01/2024  01/01/2024    10        10      100.00      0
+ ccc   01/01/2024   (com1,com2) 01/01/2024  01/01/2024    10        10      100.00      0 ","About include_groups parameter
+The include_groups parameter of DataFrameGroupBy.apply is new in pandas version 2.2.0. It is basically a transition period (2.2.0 -> 3.0) parameter added to help communicating a changing behavior (with warnings) and to tackle pandas Issue 7155. In most cases you should be able to just set it to False to silent the warning (see below).
+
+Setup
+Let's say you have a pandas DataFrame df and a dummy function myfunc for apply, and you want to
+
+Group by column 'c'
+Apply myfunc on each group
+>>> df
+      a  value     c
+0   foo     10  cat1
+1   bar     20  cat2
+2   baz     30  cat1
+3  quux     40  cat2
+
+
+>>> def myfunc(x):
+    print(x, '\n')
+    
+include_groups = True (Old behavior)
+This is the default behavior in pandas <2.2.0 (there is no include_groups parameter)
+pandas 2.2.0 and above (likely until 3.0) will still default to this but issue a DeprecationWarning.
+The grouping column(s), here 'c' is included in the DataFrameGroupBy
+>>> df.groupby('c').apply(myfunc)
+     a  value     c
+0  foo     10  cat1
+2  baz     30  cat1 
+
+      a  value     c
+1   bar     20  cat2
+3  quux     40  cat2 
+Now as mentioned in Issue 7155, keeping the grouping column c in the dataframe passed to apply is unwanted behavior. Most people will not expect c to be present here. The answer of bue has actually an example how this could lead to bugs; apply on np.mean and expect there be less columns (causes a bug if your grouping column is numerical).
+
+include_groups = False (new behavior)
+This will remove the warning in the pandas > 2.2.0 (<3.0)
+This will be the default in future version of pandas (likely 3.0)
+This is what you likely would want to have; drop the grouping column 'c':
+>>> df.groupby('c').apply(myfunc, include_groups=False)
+     a  value
+0  foo     10
+2  baz     30 
+
+      a  value
+1   bar     20
+3  quux     40 
+Circumventing need to use include_groups at all
+Option 1: Explicitly giving column names
+You may also skip the need for using the include_groups parameter at all by explicitly giving the list of the columns (as pointed out by the warning itself; ""..or explicitly select the grouping columns after groupby to silence this warning.."", and Cahit in their answer), like this:
+
+>>> df.groupby('c')[['a', 'value', 'c']].apply(myfunc)
+     a  value     c
+0  foo     10  cat1
+2  baz     30  cat1 
+
+      a  value     c
+1   bar     20  cat2
+3  quux     40  cat2 
+
+Empty DataFrame
+Columns: []
+Index: []
+Option 2: Setting the index before groupby
+You may also set the groupby column to the index, as pointed out by Stefan in the comments.
+
+>>> df.set_index('c').groupby(level='c').apply(myfunc)
+        a  value
+c               
+cat1  foo     10
+cat1  baz     30 
+
+         a  value
+c                
+cat2   bar     20
+cat2  quux     40 
+
+Empty DataFrame
+Columns: []
+Index: []
+
+Details just for this use case
+Your grouping columns are
+
+['StartDate', 'Commodity', 'DealType']
+In the apply function you use the following columns:
+
+['MTMValue',  'FixedPriceStrike', 'Quantity']
+i.e., you do not need any of the grouping columns in your apply, and therefore you can use include_groups=False which also removes the warning.
+
+fprice = df.groupby(['StartDate', 'Commodity', 'DealType']).apply(lambda group: -(group['MTMValue'].sum() - (group['FixedPriceStrike'] * group['Quantity']).sum()) / group['Quantity'].sum(), include_groups=False).reset_index(name='FloatPrice')"
+Q18,implementation,beginner,python,https://stackoverflow.com/questions/78156811/how-do-i-isort-using-ruff,"I often work in very small projects which do not have config file. How do I use ruff in place of isort to sort the imports? I know that the following command is roughly equivalent to black:
+
+ruff format .
+The format command do not sort the imports. How do I do that?","According to the documentation:
+
+Currently, the Ruff formatter does not sort imports. In order to both sort imports and format, call the Ruff linter and then the formatter:
+
+ruff check --select I --fix .
+ruff format ."
+Q19,debugging,beginner,python,https://stackoverflow.com/questions/78279136/importerror-cannot-import-name-triu-from-scipy-linalg-when-importing-gens,"I am trying to use Gensim, but running import gensim raises this error:
+
+Traceback (most recent call last):
+  File ""<stdin>"", line 1, in <module>
+  File ""/usr/local/lib/python3.10/dist-packages/gensim/__init__.py"", line 11, in <module>
+    from gensim import parsing, corpora, matutils, interfaces, models, similarities, utils  # noqa:F401
+  File ""/usr/local/lib/python3.10/dist-packages/gensim/corpora/__init__.py"", line 6, in <module>
+    from .indexedcorpus import IndexedCorpus  # noqa:F401 must appear before the other classes
+  File ""/usr/local/lib/python3.10/dist-packages/gensim/corpora/indexedcorpus.py"", line 14, in <module>
+    from gensim import interfaces, utils
+  File ""/usr/local/lib/python3.10/dist-packages/gensim/interfaces.py"", line 19, in <module>
+    from gensim import utils, matutils
+  File ""/usr/local/lib/python3.10/dist-packages/gensim/matutils.py"", line 20, in <module>
+    from scipy.linalg import get_blas_funcs, triu
+ImportError: cannot import name 'triu' from 'scipy.linalg' (/usr/local/lib/python3.10/dist-packages/scipy/linalg/__init__.py)
+Why is this happening and how can I fix it?","I found the issue.
+
+The scipy.linalg functions tri, triu & tril are deprecated and will be removed in SciPy 1.13.
+
+ SciPy 1.11.0 Release Notes § Deprecated features
+
+So, I installed SciPy v1.10.1 instead of the latest version and it was working well.
+
+pip install scipy==1.10.1"
+Q20,conceptual,intermediate,python,https://stackoverflow.com/questions/78427983/why-does-dictid-1-id-2-sometimes-raise-keyerror-id-instead-of-a,"Normally, if you try to pass multiple values for the same keyword argument, you get a TypeError:
+
+In [1]: dict(id=1, **{'id': 2})
+---------------------------------------------------------------------------
+TypeError                                 Traceback (most recent call last)
+Input In [1], in <cell line: 1>()
+----> 1 dict(id=1, **{'id': 2})
+
+TypeError: dict() got multiple values for keyword argument 'id'
+But if you do it while handling another exception, you get a KeyError instead:
+
+In [2]: try:
+   ...:     raise ValueError('foo') # no matter what kind of exception
+   ...: except:
+   ...:     dict(id=1, **{'id': 2}) # raises: KeyError: 'id'
+   ...: 
+---------------------------------------------------------------------------
+ValueError                                Traceback (most recent call last)
+Input In [2], in <cell line: 1>()
+      1 try:
+----> 2     raise ValueError('foo') # no matter what kind of exception
+      3 except:
+
+ValueError: foo
+
+During handling of the above exception, another exception occurred:
+
+KeyError                                  Traceback (most recent call last)
+Input In [2], in <cell line: 1>()
+      2     raise ValueError('foo') # no matter what kind of exception
+      3 except:
+----> 4     dict(id=1, **{'id': 2})
+
+KeyError: 'id'
+What's going on here? How could a completely unrelated exception affect what kind of exception dict(id=1, **{'id': 2}) throws?
+
+For context, I discovered this behavior while investigating the following bug report: https://github.com/tortoise/tortoise-orm/issues/1583
+
+This has been reproduced on CPython 3.11.8, 3.10.5, and 3.9.5.","This looks like a Python bug.
+
+The code that's supposed to raise the TypeError works by detecting and replacing an initial KeyError, but this code doesn't work right. When the exception occurs in the middle of another exception handler, the code that should raise the TypeError fails to recognize the KeyError. It ends up letting the KeyError through, instead of replacing it with a TypeError.
+
+The bug appears to be gone on 3.12, due to changes in the exception implementation.
+
+Here's the deep dive, for the CPython 3.11.8 source code. Similar code exists on 3.10 and 3.9.
+
+As we can see by using the dis module to examine the bytecode for dict(id=1, **{'id': 2}):
+
+In [1]: import dis
+
+In [2]: dis.dis(""dict(id=1, **{'id': 2})"")
+  1           0 LOAD_NAME                0 (dict)
+              2 LOAD_CONST               3 (())
+              4 LOAD_CONST               0 ('id')
+              6 LOAD_CONST               1 (1)
+              8 BUILD_MAP                1
+             10 LOAD_CONST               0 ('id')
+             12 LOAD_CONST               2 (2)
+             14 BUILD_MAP                1
+             16 DICT_MERGE               1
+             18 CALL_FUNCTION_EX         1
+             20 RETURN_VALUE
+Python uses the DICT_MERGE opcode to merge two dicts, to build the final keyword argument dict.
+
+The relevant part of the DICT_MERGE code is as follows:
+
+            if (_PyDict_MergeEx(dict, update, 2) < 0) {
+                format_kwargs_error(tstate, PEEK(2 + oparg), update);
+                Py_DECREF(update);
+                goto error;
+            }
+It uses _PyDict_MergeEx to attempt to merge two dicts, and if that fails (and raises an exception), it uses format_kwargs_error to try to raise a different exception.
+
+When the third argument to _PyDict_MergeEx is 2, that function will raise a KeyError for duplicate keys, inside the dict_merge helper function. This is where the KeyError comes from.
+
+Once the KeyError is raised, format_kwargs_error has the job of replacing it with a TypeError. It tries to do so with the following code:
+
+    else if (_PyErr_ExceptionMatches(tstate, PyExc_KeyError)) {
+        PyObject *exc, *val, *tb;
+        _PyErr_Fetch(tstate, &exc, &val, &tb);
+        if (val && PyTuple_Check(val) && PyTuple_GET_SIZE(val) == 1) {
+but this code is looking for an unnormalized exception, an internal way of representing exceptions that isn't exposed to Python-level code. It expects the exception value to be a 1-element tuple containing the key that the KeyError was raised for, instead of an actual exception object.
+
+Exceptions raised inside C code are usually unnormalized, but not if they occur while Python is handling another exception. Unnormalized exceptions cannot handle exception chaining, which occurs automatically for exceptions raised inside an exception handler. In this case, the internal _PyErr_SetObject routine will automatically normalize the exception:
+
+    exc_value = _PyErr_GetTopmostException(tstate)->exc_value;
+    if (exc_value != NULL && exc_value != Py_None) {
+        /* Implicit exception chaining */
+        Py_INCREF(exc_value);
+        if (value == NULL || !PyExceptionInstance_Check(value)) {
+            /* We must normalize the value right now */
+Since the KeyError has been normalized, format_kwargs_error doesn't understand what it's looking at. It lets the KeyError through, instead of raising the TypeError it's supposed to.
+
+On Python 3.12, things are different. The internal exception representation has been changed, so any raised exception is always normalized. Thus, the Python 3.12 version of format_kwargs_error looks for a normalized exception instead of an unnormalized exception, and if _PyDict_MergeEx has raised a KeyError, the code will recognize it:
+
+    else if (_PyErr_ExceptionMatches(tstate, PyExc_KeyError)) {
+        PyObject *exc = _PyErr_GetRaisedException(tstate);
+        PyObject *args = ((PyBaseExceptionObject *)exc)->args;
+        if (exc && PyTuple_Check(args) && PyTuple_GET_SIZE(args) == 1) {"
+Q21,conceptual,intermediate,python,https://stackoverflow.com/questions/78156640/why-is-visual-studio-code-saying-my-code-in-unreachable-after-using-the-pandas-c,"I sorted four similar lists. List d consistently takes much longer than the others, which all take about the same time:
+
+a:  33.5 ms
+b:  33.4 ms
+c:  36.4 ms
+d: 110.9 ms
+Why is that?
+
+Test script (Attempt This Online!):
+
+from timeit import repeat
+
+n = 2_000_000
+a = [i // 1 for i in range(n)]  # [0, 1, 2, 3, ..., 1_999_999]
+b = [i // 2 for i in range(n)]  # [0, 0, 1, 1, 2, 2, ..., 999_999]
+c = a[::-1]                     # [1_999_999, ..., 3, 2, 1, 0]
+d = b[::-1]                     # [999_999, ..., 2, 2, 1, 1, 0, 0]
+
+for name in 'abcd':
+    lst = globals()[name]
+    time = min(repeat(lambda: sorted(lst), number=1))
+    print(f'{name}: {time*1e3 :5.1f} ms')","As alluded to in the comments by btilly and Amadan, this is due to how the Timsort sorting algorithm works. Detailed description of the algorithm is here.
+
+Timsort speeds up operation on partially sorted arrays by identifying runs of sorted elements.
+
+A run is either ""ascending"", which means non-decreasing:
+
+a0 <= a1 <= a2 <= ...
+
+or ""descending"", which means strictly decreasing:
+
+a0 > a1 > a2 > ...
+
+Note that a run is always at least 2 long, unless we start at the array's last element.
+
+Your arrays a, b and c each consist of just one run. The array d has 1 million runs.
+
+The reason why the descending run cannot be >= is to make the sort stable, i.e. keep the order of equal elements:
+
+The definition of descending is strict, because the main routine reverses a descending run in-place, transforming a descending run into an ascending run. Reversal is done via the obvious fast ""swap elements starting at each end, and converge at the middle"" method, and that can violate stability if the slice contains any equal elements. Using a strict definition of descending ensures that a descending run contains distinct elements.
+
+Python 3.11 has slightly improved version of timsort, sometimes called powersort, but it uses the same run detection and thus has the same performance."
+Q22,implementation,beginner,python,https://stackoverflow.com/questions/77885145/how-can-i-suppress-ruff-linting-on-a-block-of-code,"I would like to disable/suppress the ruff linter (or certain linting rules) on a block of code. I know that I can do this for single lines (by using # noqa: <rule_code> at the end of the line) or for entire files/folder (#ruff: noqa <rule_code> at the top of the file).
+
+However, I would like to disable the linter ruff on one function or on a multi-line block of code, but not an entire file. Is there a way to do this, without adding noqa to the end of each line?","You did not specify this in your question, but if this is about ruff format, and you want to generally disable it for a block of code, you can actually do this using the fmt comment:
+
+# fmt: off
+
+def my_unformatted_function():
+   do_something()
+
+# fmt: on"
+Q23,conceptual,intermediate,python,https://stackoverflow.com/questions/44761748/compiling-python-to-webassembly/47739532#47739532,"I have read that it is possible to convert Python 2.7 code to Web Assembly, but I cannot find a definitive guide on how to to so.
+
+So far I have compiled a C program to Web Assembly using Emscripten and all its necessary components, so I know it is working (guide used: http://webassembly.org/getting-started/developers-guide/)
+
+What are the steps I must take in order to do this on an Ubuntu machine? Do I have to convert the python code to LLVM bitcode then compile it using Emscripten? If so, how would I achieve this?","WebAssembly vs asm.js
+First, let's take a look how, in principle, WebAssembly is different from asm.js, and whether there's potential to reuse existing knowledge and tooling. The following gives pretty good overview:
+
+Why create a new standard when there is already asm.js?
+What is the difference between asm.js and web assembly?
+Why WebAssembly is Faster Than asm.js
+Let's recapitulate, WebAssembly (MVP, as there's more on its roadmap, roughly):
+
+is a binary format of AST with static typing, which can be executed by existing JavaScript engines (and thus JIT-able or compiled AOT),
+it's 10-20% more compact (gzipped comparison) and an order of magnitude faster to parse than JavaScript,
+it can express more low-level operation that won't fit into JavaScript syntax, read asm.js (e.g. 64-bit integers, special CPU instructions, SIMD, etc)
+is convertible (to some extent) to/from asm.js.
+Thus, currently WebAssembly is an iteration on asm.js and targets only C/C++ (and similar languages).
+
+Python on the Web
+It doesn't look like GC is the only thing that stops Python code from targeting WebAssembly/asm.js. Both represent low-level statically typed code, in which Python code can't (realistically) be represented. As current toolchain of WebAssembly/asm.js is based on LLVM, a language that can be easily compiled to LLVM IR can be converted to WebAssembly/asm.js. But alas, Python is too dynamic to fit into it as well, as proven by Unladen Swallow and several attempts of PyPy.
+
+This asm.js presentation has slides about the state of dynamic languages. What it means is that currently it's only possible to compile whole VM (language implementation in C/C++) to WebAssembly/asm.js and interpret (with JIT where possible) original sources. For Python there're several existing projects:
+
+PyPy: PyPy.js (author's talk at PyCon). Here's release repo. Main JS file, pypyjs.vm.js, is 13 MB (2MB after gzip -6) + Python stdlib + other stuff.
+
+CPython: pyodide, EmPython, CPython-Emscripten, EmCPython, etc. empython.js is 5.8 MB (2.1 MB after gzip -6), no stdlib.
+
+Micropython: this fork.
+
+There was no built JS file there, so I was able to build it with trzeci/emscripten/, a ready-made Emscripten toolchain. Something like:
+
+ git clone https://github.com/matthewelse/micropython.git
+ cd micropython
+ docker run --rm -it -v $(pwd):/src trzeci/emscripten bash
+ apt-get update && apt-get install -y python3
+ cd emscripten
+ make -j
+ # to run REPL: npm install && nodejs server.js 
+It produces micropython.js of 1.1 MB (225 KB after gzip -d). The latter is already something to consider, if you need only very compliant implementation without stdlib.
+
+To produce WebAssembly build you can change line 13 of the Makefile to
+
+ CC = emcc -s RESERVED_FUNCTION_POINTERS=20 -s WASM=1
+Then make -j produces:
+
+ 113 KB micropython.js
+ 240 KB micropython.wasm
+You can look at HTML output of emcc hello.c -s WASM=1 -o hello.html, to see how to use these files.
+
+This way you can also potentially build PyPy and CPython in WebAssembly to interpret your Python application in a compliant browser.
+
+Another potentially interesting thing here is Nuitka, a Python to C++ compiler. Potentially it can be possible to build your Python app to C++ and then compile it along with CPython with Emscripten. But practically I've no idea how to do it.
+
+Solutions
+For the time being, if you're building a conventional web site or web app where download several-megabyte JS file is barely an option, take a look at Python-to-JavaScript transpilers (e.g. Transcrypt) or JavaScript Python implementations (e.g. Brython). Or try your luck with others from list of languages that compile to JavaScript.
+
+Otherwise, if download size is not an issue, and you're ready to tackle a lot of rough edges, choose between the three above.
+
+Q3 2020 update
+JavaScript port was integrated into MicroPython. It lives in ports/javascript.
+
+The port is available as a npm package called MicroPython.js. You can try it out in RunKit.
+
+There's an actively developed Python implementation in Rust, called RustPython. Because Rust officially supports WebAssembly as compile target, no surprise there's demo link right in the top of the readme. Though, it's early. Their disclaimer follows.
+
+RustPython is in a development phase and should not be used in production or a fault intolerant setting.
+
+Our current build supports only a subset of Python syntax.
+
+Q1 2023 update
+Python 3.11 recognises two WebAssembly ""platforms"" in its documentation and documents its API availability on them among other platforms like Linux and Unix (see this PR for more details) and also recommends Pyodide (from Mozilla) and another port, PyScript (from Anaconda), based on it:
+
+The WebAssembly platforms wasm32-emscripten (Emscripten) and wasm32-wasi (WASI) provide a subset of POSIX APIs. WebAssembly runtimes and browsers are sandboxed and have limited access to the host and external resources. Any Python standard library module that uses processes, threading, networking, signals, or other forms of inter-process communication (IPC), is either not available or may not work as on other Unix-like systems.
+
+[...]
+
+For Python in the browser, users should consider Pyodide or PyScript. PyScript is built on top of Pyodide, which itself is built on top of CPython and Emscripten. Pyodide provides access to browsers JavaScript and DOM APIs as well as limited networking capabilities with JavaScripts XMLHttpRequest and Fetch APIs."
+Q24,debugging,intermediate,python,https://stackoverflow.com/questions/78634235/numpy-dtype-size-changed-may-indicate-binary-incompatibility-expected-96-from,"I want to call my Python module from the Matlab. I received the error:
+
+Error using numpy_ops>init thinc.backends.numpy_ops
+Python Error:
+
+ ValueError: numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject.
+The Python script is as follows
+
+import spacy
+def text_recognizer(model_path, text):
+try:
+    # Load the trained model
+    nlp = spacy.load(model_path)
+    print(""Model loaded successfully."")
+    
+    # Process the given text
+    doc = nlp(text)
+    ent_labels = [(ent.text, ent.label_) for ent in doc.ents]
+        return ent_labels
+The Matlab script is as follows
+
+% Set up the Python environment
+pe = pyenv;
+py.importlib.import_module('final_output');
+
+% Add the directory containing the Python script to the Python path
+path_add = fileparts(which('final_output.py'));
+if count(py.sys.path, path_add) == 0
+    insert(py.sys.path, int64(0), path_add);
+end
+% Define model path and text to process
+model_path = 'D:\trained_model\\output\\model-best';
+text = 'Roses are red';
+% Call the Python function
+pyOut = py.final_output.text_recognizer(model_path, text);
+% Convert the output to a MATLAB cell array
+entity_labels = cell(pyOut);
+disp(entity_labels);
+I found one solution to update Numpy, what I did, but nothing changed. I am using Python 3.9 and Numpy version 2.0.0
+
+The error was received when I tried to call the Python module using a Matlab script.
+
+How can I fix the issue?","The reason is that pandas defines its numpy dependency freely as ""anything newer than certain version of numpy"". The problem occured, when numpy==2.0.0 has been released on June 16th 2024, because it is no longer compatible with your pandas version.
+
+The solution is to pin down the numpy version to any before the 2.0.0. Today it could be (this is the most recent numpy 1 release):
+
+numpy==1.26.4
+To be added in your requirements or to the pip command you use (but together with installing pandas).
+
+Nowadays pip is very flexible and can handle the issue flawesly. You just need to ask it to install both pandas and numpy of given versions in the same pip install invocation."
+Q25,implementation,intermediate,python,https://stackoverflow.com/questions/78056934/pandas-or-polars-find-index-of-previous-element-larger-than-current-one,"Suppose my data looks like this:
+
+data = {
+    'value': [1,9,6,7,3, 2,4,5,1,9]
+}
+For each row, I would like to find the row number of the latest previous element larger than the current one.
+
+So, my expected output is:
+
+[None, 0, 1, 2, 1, 1, 3, 4, 1, 0]
+the first element 1 has no previous element, so I want None in the result
+the next element 9 is at least as large than all its previous elements, so I want 0 in the result
+the next element 6, has its previous element 9 which is larger than it. The distance between them is 1. So, I want 1 in the result here.
+I'm aware that I can do this in a loop in Python (or in C / Rust if I write an extension).
+
+My question: is it possible to solve this using entirely dataframe operations? pandas or Polars, either is fine. But only dataframe operations.
+
+So, none of the following please:
+
+apply
+map_elements
+map_rows
+iter_rows
+Python for loops which loop over the rows and extract elements one-by-one from the dataframes","It's hard to vectorize these kind of problems, but you can use numba module to speed-up the task. Also this problem can be parallelized very easily:
+
+from numba import njit, prange
+
+@njit(parallel=True)
+def get_values(values):
+    out = np.zeros_like(values, dtype=np.float64)
+
+    for i in prange(len(values)):
+        idx = np.int64(i)
+        v = values[idx]
+
+        while idx > -1 and values[idx] <= v:
+            idx -= 1
+
+        if idx > -1:
+            out[i] = i - idx
+
+    out[0] = np.nan
+    return out
+
+data = {
+    ""value"": [1, 9, 6, 7, 3, 2, 4, 5, 1, 9],
+    ""out"": [None, 0, 1, 2, 1, 1, 3, 4, 1, 0],
+}
+df = pd.DataFrame(data)
+
+df[""out2""] = get_values(df[""value""].values)
+print(df)
+Prints:
+
+   value  out  out2
+0      1  NaN   NaN
+1      9  0.0   0.0
+2      6  1.0   1.0
+3      7  2.0   2.0
+4      3  1.0   1.0
+5      2  1.0   1.0
+6      4  3.0   3.0
+7      5  4.0   4.0
+8      1  1.0   1.0
+9      9  0.0   0.0
+Benchmark (with 1_000_000 items from 1-100):
+
+from timeit import timeit
+
+data = {
+    ""value"": np.random.randint(1, 100, size=1_000_000),
+}
+df = pd.DataFrame(data)
+
+t = timeit('df[""out""] = get_values(df[""value""].values)', globals=globals(), number=1)
+print(t)
+Prints on my machine (AMD 5700x):
+
+0.3559090679627843"
+Q26,implementation,beginner,python,https://stackoverflow.com/questions/79176155/how-can-i-bump-the-python-package-version-using-uv,Poetry has the version command to increment a package version. Does the uv package manager have anything similar?,"This feature has been introduced with the release of uv 0.7.0. Especially, uv version now can be used to inspect and bump a project's version.
+
+Show current version.
+
+$ uv version
+stack-example 1.2.3
+Bump patch / minor / major version.
+
+$ uv version --bump patch
+stack-example 1.2.3 => 1.2.4
+$ uv version --bump minor
+stack-example 1.2.4 => 1.3.0
+$ uv version --bump major
+stack-example 1.3.0 => 2.0.0
+Show version of uv itself (previously by running uv version).
+
+$ uv self version
+uv 0.7.1 (90f46f89a 2025-04-30)"
+Q27,conceptual,beginner,python,https://stackoverflow.com/questions/79167901/why-do-i-need-another-pair-of-curly-braces-when-using-a-variable-in-a-format-spe,"I'm learning how Python f-strings handle formatting and came across this syntax:
+
+a = 5.123
+b = 2.456
+width = 10
+result = f""The result is {(a + b):<{width}.2f}end""
+print(result)
+This works as expected, however I don't understand why {width} needs its own curly braces within the format specification. Why can't I just use width directly just as ""a"" and ""b""? Isn't width already inside the outer curly braces?","The braces are needed because the part starting with : is the format specification mini-language. That is parsed as its own f-string, where all is literal, except if put in braces.
+
+That format specification language would bump into ambiguities if those braces were not required: that language gives meaning to certain letters, and it would not be clear whether such letter(s) would need to be taken literally or as an expression to be evaluated dynamically.
+
+For instance, in Python 3.11+ we have the z option that can occur at the position where you specified the width:
+
+z = 5
+f""The result is {(a + b):<z.2f}end""
+So what would this mean if braces were not needed? Would it be the z option or what the z variable represents?
+
+There are many more examples that could be constructed to bring the same conclusion home: the braces are needed for anything that needs to be evaluated inside the format specification part."
+Q28,conceptual,beginner,python,https://stackoverflow.com/questions/73664093/lightgbm-train-vs-update-vs-refit/73669068#73669068,"I'm implementing LightGBM (Python) into a continuous learning pipeline. My goal is to train an initial model and update the model (e.g. every day) with newly available data. Most examples load an already trained model and apply train() once again:
+
+updated_model = lightgbm.train(params=last_model_params, train_set=new_data, init_model = last_model)
+However, I'm wondering if this is actually the correct way to approach continuous learning within the LightGBM library since the amount of fitted trees (num_trees()) grows for every application of train() by n_estimators. For my understanding a model update should take an initial model definition (under a given set of model parameters) and refine it without ever growing the amount of trees/size of the model definition.
+
+I find the documentation regarding train(), update() and refit() not particularly helpful. What would be considered the right approach to implement continuous learning with LightGBM?","In lightgbm (the Python package for LightGBM), these entrypoints you've mentioned do have different purposes.
+
+The main lightgbm model object is a Booster. A fitted Booster is produced by training on input data. Given an initial trained Booster...
+
+Booster.refit() does not change the structure of an already-trained model. It just updates the leaf counts and leaf values based on the new data. It will not add any trees to the model.
+Booster.update() will perform exactly 1 additional round of gradient boosting on an existing Booster. It will add at most 1 tree to the model.
+train() with an init_model will perform gradient boosting for num_iterations additional rounds. It also allows for lots of other functionality, like custom callbacks (e.g. to change the learning rate from iteration-to-iteration) and early stopping (to stop adding trees if performance on a validation set fails to improve). It will add up to num_iterations trees to the model.
+What would be considered the right approach to implement continuous learning with LightGBM?
+
+There are trade-offs involved in this choice and no one of these is the globally ""right"" way to achieve the goal ""modify an existing model based on newly-arrived data"".
+
+Booster.refit() is the only one of these approaches that meets your definition of ""refine [the model] without ever growing the amount of trees/size of the model definition"". But it could lead to drastic changes in the predictions produced by the model, especially if the batch of newly-arrived data is much smaller than the original training data, or if the distribution of the target is very different.
+
+Booster.update() is the simplest interface for this, but a single iteration might not be enough to get most of the information from the newly-arrived data into the model. For example, if you're using fairly shallow trees (say, num_leaves=7) and a very small learning rate, even newly-arrived data that is very different from the original training data might not change the model's predictions by much.
+
+train(init_model=previous_model) is the most flexible and powerful option, but it also introduces more parameters and choices. If you choose to use train(init_model=previous_model), pay attention to parameters num_iterations and learning_rate. Lower values of these parameters will decrease the impact of newly-arrived data on the trained model, higher values will allow a larger change to the model. Finding the right balance between those is a concern for your evaluation framework.
+"
+Q29,implementation,beginner,python,https://stackoverflow.com/questions/79723518/how-to-set-up-a-simple-hello-world-example-where-a-c-function-calls-a-cython-fun,"I am having trouble making a simple ""Hello World"" python function which I can call from a C program.
+
+Here is the contents of my helloworld.py file:
+
+def hw():
+  print(""Hello World"")
+Here is the contents of the caller.pyx file:
+
+from helloworld import hw
+
+cdef public void call_hw():
+  hw()
+And here is the contents of my main.c file:
+
+#include <Python.h>
+#include ""caller.h""
+
+int
+main()
+{
+  Py_Initialize();
+  call_hw();
+  Py_Finalize();
+}
+Here are the commands I do:
+
+$ cython caller.pyx
+$ gcc -g -Wall -I/usr/include/python3.12 -c caller.c
+$ gcc -g -Wall -I/usr/include/python3.12 -c main.c
+$ gcc -g -Wall -I/usr/include/python3.12 -o main *.o -lpython3.12
+$ ./main
+Segmentation fault (core dumped)
+Here is a backtrace:
+
+Program received signal SIGSEGV, Segmentation fault.
+0x0000555555558898 in __Pyx__GetModuleGlobalName (name=0x0) at caller.c:2739
+2739        result = _PyDict_GetItem_KnownHash(__pyx_d, name, ((PyASCIIObject *) name)->hash);
+(gdb) bt
+#0  0x0000555555558898 in __Pyx__GetModuleGlobalName (name=0x0) at caller.c:2739
+#1  0x0000555555556d9a in call_hw () at caller.c:2002
+#2  0x000055555555cef6 in main () at main.c:8
+Can anyone tell me what I'm doing wrong?","caller is still a Python module, and it needs to be initialised and imported before you can use it or any of its functions. That is, you need to ensure the from helloworld import hw bit of python code is run. See the documentation on embedding for more details. Further documentation on using Cython Declarations from C can be found here.
+
+The key additions you need are:
+
+call PyImport_AppendInittab
+tell Python where it can import modules from (see end)
+call PyImport_ImportModule
+For example, main.c would become:
+
+#include <Python.h>
+#include <stdio.h>
+#include ""caller.h""
+
+int
+main()
+{
+    PyObject *pmodule;
+    /* Add a built-in module, before Py_Initialize
+       PyInit_caller is generated code from caller.c
+     * NB.the name will vary with the module name */
+    if (PyImport_AppendInittab(""caller"", PyInit_caller) == -1) {
+        fprintf(stderr, ""Error: could not extend in-built modules table\n"");
+        exit(1);
+    }
+
+    /* Initialize the Python interpreter.  Required.
+       If this step fails, it will be a fatal error. */
+    Py_Initialize();
+
+    /* Optionally set import path here */
+    // PyRun_SimpleString(""import sys\nsys.path.insert(0,'')"");
+
+    /* Import the module.
+       If this step fails, it will be a fatal error. */
+    pmodule = PyImport_ImportModule(""caller"");
+    if (!pmodule) {
+        PyErr_Print();
+        fprintf(stderr, ""Error: could not import module 'caller'\n"");
+        goto exit_with_error;
+    }
+
+    /* your code goes here */    
+    call_hw();
+
+    /* end of program */
+    Py_Finalize();
+    return 0;
+
+    /* Clean up in the error cases above. */
+exit_with_error:
+    Py_Finalize();
+    return 1;
+}
+PYTHONPATH
+However, that is not all you need to do. You will also need to tell the interpreter where it can look when importing modules. By default, the current working directory is added when running normal python scripts. This is not the case for embedded scripts. Instead you will need to manually do this. One simple way is to set the environment variable PYTHONPATH to .. For instance:
+
+PYTHONPATH=. ./main
+Alternatively, you can put the following before your first module import (but after you initialise the interpreter) in main.c:main()
+
+PyRun_SimpleString(""import sys\nsys.path.insert(0,'')"");"
+Q30,implementation,,python,https://stackoverflow.com/questions/79344035/how-to-add-requirements-txt-to-uv-environment,"I am working with uv for the first time and have created a venv to manage my dependencies. Now, I'd like to install some dependencies from a requirements.txt file.
+
+How can this be achieved with uv?
+
+I already tried manually installing each requirement using uv pip install .... However, this gets tedious for a large list of requirements.","You can install the dependencies to the virtual environment managed by uv using:
+
+uv pip install -r requirements.txt
+When working with a project (application or library) managed by uv, the following command might be used instead:
+
+uv add -r requirements.txt
+This will also add the requirements to the project's pyproject.toml."
