@@ -1,0 +1,856 @@
+question_id,category,question_text,accepted_answer,model,model_answer,score,reason
+Q01,debugging,"I am trying to append a dictionary to a DataFrame object, but I get the following error:
+
+AttributeError: 'DataFrame' object has no attribute 'append'
+
+As far as I know, DataFrame does have the method ""append"".
+
+Code snippet:
+
+df = pd.DataFrame(df).append(new_row, ignore_index=True)
+I was expecting the dictionary new_row to be added as a new row.
+
+How can I fix it?","As of pandas 2.0, append (previously deprecated) was removed.
+
+You need to use concat instead (for most applications):
+
+df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+As noted by @cottontail, it's also possible to use loc, although this only works if the new index is not already present in the DataFrame (typically, this will be the case if the index is a RangeIndex:
+
+df.loc[len(df)] = new_row # only use with a RangeIndex!
+Why was it removed?
+We frequently see new users of pandas try to code like they would do it in pure Python. They use iterrows to access items in a loop (see here why you shouldn't), or append in a way that is similar to python list.append.
+
+However, as noted in pandas' issue #35407, pandas's append and list.append are really not the same thing. list.append is in place, while pandas's append creates a new DataFrame:
+
+I think that we should deprecate Series.append and DataFrame.append. They're making an analogy to list.append, but it's a poor analogy since the behavior isn't (and can't be) in place. The data for the index and values needs to be copied to create the result.
+
+These are also apparently popular methods. DataFrame.append is around the 10th most visited page in our API docs.
+
+Unless I'm mistaken, users are always better off building up a list of values and passing them to the constructor, or building up a list of NDFrames followed by a single concat.
+
+As a consequence, while list.append is amortized O(1) at each step of the loop, pandas' append is O(n), making it inefficient when repeated insertion is performed.
+
+What if I need to repeat the process?
+Using append or concat repeatedly is not a good idea (this has a quadratic behavior as it creates a new DataFrame for each step).
+
+In such case, the new items should be collected in a list, and at the end of the loop converted to DataFrame and eventually concatenated to the original DataFrame.
+
+lst = []
+
+for new_row in items_generation_logic:
+    lst.append(new_row)
+
+# create extension
+df_extended = pd.DataFrame(lst, columns=['A', 'B', 'C'])
+# or columns=df.columns if identical columns
+
+# concatenate to original
+out = pd.concat([df, df_extended])",o4-mini,"DIAGNOSIS:
+You’re on pandas 2.0+, where DataFrame.append() was removed, so trying to call it now raises an AttributeError. 
+
+SOLUTION:
+Replace your append call with either pd.concat or direct row assignment. For example using concat:
+
+```python
+import pandas as pd
+
+# suppose df is your existing DataFrame and new_row is a dict
+new_row = {'col1': 1, 'col2': 'foo'}
+
+# turn the dict into a one-row DataFrame and concat
+df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+```
+
+Or using .loc to add a row in place:
+
+```python
+# find next index and assign
+next_idx = len(df)
+df.loc[next_idx] = new_row
+```
+
+EXPLANATION:
+• In pandas 2.0 the .append() method was dropped.  
+• pd.concat takes a list of DataFrames and merges them, here combining your existing df with a one-row DataFrame built from your dict.  
+• Alternatively, .loc[len(df)] = new_row directly assigns the dict values to a new row in df. Either approach achieves the same “append-row” effect.",3,have code right and explain clear
+Q01,debugging,"I am trying to append a dictionary to a DataFrame object, but I get the following error:
+
+AttributeError: 'DataFrame' object has no attribute 'append'
+
+As far as I know, DataFrame does have the method ""append"".
+
+Code snippet:
+
+df = pd.DataFrame(df).append(new_row, ignore_index=True)
+I was expecting the dictionary new_row to be added as a new row.
+
+How can I fix it?","As of pandas 2.0, append (previously deprecated) was removed.
+
+You need to use concat instead (for most applications):
+
+df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+As noted by @cottontail, it's also possible to use loc, although this only works if the new index is not already present in the DataFrame (typically, this will be the case if the index is a RangeIndex:
+
+df.loc[len(df)] = new_row # only use with a RangeIndex!
+Why was it removed?
+We frequently see new users of pandas try to code like they would do it in pure Python. They use iterrows to access items in a loop (see here why you shouldn't), or append in a way that is similar to python list.append.
+
+However, as noted in pandas' issue #35407, pandas's append and list.append are really not the same thing. list.append is in place, while pandas's append creates a new DataFrame:
+
+I think that we should deprecate Series.append and DataFrame.append. They're making an analogy to list.append, but it's a poor analogy since the behavior isn't (and can't be) in place. The data for the index and values needs to be copied to create the result.
+
+These are also apparently popular methods. DataFrame.append is around the 10th most visited page in our API docs.
+
+Unless I'm mistaken, users are always better off building up a list of values and passing them to the constructor, or building up a list of NDFrames followed by a single concat.
+
+As a consequence, while list.append is amortized O(1) at each step of the loop, pandas' append is O(n), making it inefficient when repeated insertion is performed.
+
+What if I need to repeat the process?
+Using append or concat repeatedly is not a good idea (this has a quadratic behavior as it creates a new DataFrame for each step).
+
+In such case, the new items should be collected in a list, and at the end of the loop converted to DataFrame and eventually concatenated to the original DataFrame.
+
+lst = []
+
+for new_row in items_generation_logic:
+    lst.append(new_row)
+
+# create extension
+df_extended = pd.DataFrame(lst, columns=['A', 'B', 'C'])
+# or columns=df.columns if identical columns
+
+# concatenate to original
+out = pd.concat([df, df_extended])",claude-sonnet-4-6,"## DIAGNOSIS
+The `DataFrame.append()` method was **deprecated in Pandas 1.4.0** and **completely removed in Pandas 2.0.0**. That's why you're getting the `AttributeError`.
+
+## SOLUTION
+Use `pd.concat()` instead:
+
+```python
+import pandas as pd
+
+# Your existing DataFrame
+df = pd.DataFrame({'A': [1, 2], 'B': [3, 4]})
+
+# Your new row as a dictionary
+new_row = {'A': 5, 'B': 6}
+
+# Fix: use pd.concat() instead of .append()
+df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+
+print(df)
+#    A  B
+# 0  1  3
+# 1  2  4
+# 2  5  6
+```
+
+**If you need to append multiple rows at once:**
+```python
+new_rows = [{'A': 5, 'B': 6}, {'A': 7, 'B': 8}]
+df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
+```
+
+## EXPLANATION
+- `pd.concat()` takes a **list of DataFrames** and concatenates them, so the dictionary must first be wrapped in `pd.DataFrame([new_row])` (note the list brackets around the dict — this tells Pandas to treat each dict as a row).
+- `ignore_index=True` resets the index on the resulting DataFrame, just like it did with the old `.append()`.
+- This is now the **official recommended approach** in Pandas 2.0+.",3,have code right and explain clear
+Q01,debugging,"I am trying to append a dictionary to a DataFrame object, but I get the following error:
+
+AttributeError: 'DataFrame' object has no attribute 'append'
+
+As far as I know, DataFrame does have the method ""append"".
+
+Code snippet:
+
+df = pd.DataFrame(df).append(new_row, ignore_index=True)
+I was expecting the dictionary new_row to be added as a new row.
+
+How can I fix it?","As of pandas 2.0, append (previously deprecated) was removed.
+
+You need to use concat instead (for most applications):
+
+df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+As noted by @cottontail, it's also possible to use loc, although this only works if the new index is not already present in the DataFrame (typically, this will be the case if the index is a RangeIndex:
+
+df.loc[len(df)] = new_row # only use with a RangeIndex!
+Why was it removed?
+We frequently see new users of pandas try to code like they would do it in pure Python. They use iterrows to access items in a loop (see here why you shouldn't), or append in a way that is similar to python list.append.
+
+However, as noted in pandas' issue #35407, pandas's append and list.append are really not the same thing. list.append is in place, while pandas's append creates a new DataFrame:
+
+I think that we should deprecate Series.append and DataFrame.append. They're making an analogy to list.append, but it's a poor analogy since the behavior isn't (and can't be) in place. The data for the index and values needs to be copied to create the result.
+
+These are also apparently popular methods. DataFrame.append is around the 10th most visited page in our API docs.
+
+Unless I'm mistaken, users are always better off building up a list of values and passing them to the constructor, or building up a list of NDFrames followed by a single concat.
+
+As a consequence, while list.append is amortized O(1) at each step of the loop, pandas' append is O(n), making it inefficient when repeated insertion is performed.
+
+What if I need to repeat the process?
+Using append or concat repeatedly is not a good idea (this has a quadratic behavior as it creates a new DataFrame for each step).
+
+In such case, the new items should be collected in a list, and at the end of the loop converted to DataFrame and eventually concatenated to the original DataFrame.
+
+lst = []
+
+for new_row in items_generation_logic:
+    lst.append(new_row)
+
+# create extension
+df_extended = pd.DataFrame(lst, columns=['A', 'B', 'C'])
+# or columns=df.columns if identical columns
+
+# concatenate to original
+out = pd.concat([df, df_extended])",llama4-scout,"# Step-by-step analysis of the problem:
+1. **The issue lies in the version of pandas you're using**. The `append` method for DataFrames was deprecated since pandas 1.4.0 and removed in pandas 2.0.0.
+
+# Fixed solution:
+```python
+import pandas as pd
+
+# assuming df and new_row are defined
+df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+```
+
+# Explanation of changes:
+* **Use `pd.concat` instead of `append`**: The `concat` function is used to concatenate pandas objects. 
+* **Convert the dictionary to a DataFrame**: We convert `new_row` to a DataFrame using `pd.DataFrame([new_row])`. The extra brackets are necessary to tell pandas that `new_row` is a dictionary and should be treated as a row.
+* **`ignore_index=True` ensures the index is reset**: This argument makes sure the index of the resulting DataFrame is reset.
+
+# Tests and example uses:
+```python
+import pandas as pd
+
+# create a DataFrame
+df = pd.DataFrame({
+    'Name': ['John', 'Anna'],
+    'Age': [28, 24]
+})
+
+# create a new row
+new_row = {'Name': 'Peter', 'Age': 35}
+
+# append the new row
+df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+
+print(df)
+```
+
+Output:
+```
+     Name  Age
+0    John   28
+1    Anna   24
+2   Peter   35
+```",3,have code right and explain clear
+Q02,debugging,"I'm working on scripts to connect to AWS from Win10. When I try to install a python module or execute a script I get the following error:
+
+[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1129)
+I've verified that the certificate in the environment path is defined so, besides that, I'm not sure what else to use to troubleshoot the issue.
+","Try this in the command line:
+
+pip install pip-system-certs
+I've been struggling with the CERTIFICATE_VERIFY_FAILED error as well when using the requests module. I tried installing certifi but that didn't help. The only solution to my problem was to install pip-system-certs. For some reason that allowed requests to access a local certificate.
+
+Also: requests.get(url, verify=False) is not recommended for production environment because you basically turn safety off.",o4-mini,"1. DIAGNOSIS  
+Your Python/OpenSSL install cannot find a trusted CA bundle, so every HTTPS request (pip, requests, boto3, etc.) fails host-certificate verification with “unable to get local issuer certificate.”
+
+2. SOLUTION  
+Install a CA bundle (e.g. the one maintained by curl or via certifi) and point Python at it. For example:
+
+a. Download Mozilla’s CA bundle  
+   • Go to https://curl.se/ca/cacert.pem  
+   • Save it to, say, C:\certs\cacert.pem  
+
+b. Tell pip and requests (and thus boto3) to use it  
+
+   1. Set a system environment variable  
+      Open an elevated PowerShell prompt and run:  
+         setx SSL_CERT_FILE ""C:\certs\cacert.pem"" /M  
+         setx REQUESTS_CA_BUNDLE ""C:\certs\cacert.pem"" /M  
+      Restart your shell.  
+
+   2. (Optional) Pin it in pip’s config  
+      Create or edit `%USERPROFILE%\pip\pip.ini` to contain:  
+         [global]  
+         cert = C:\certs\cacert.pem  
+
+c. Verify it works  
+   From a new PowerShell window:  
+     python -c ""import certifi, ssl; print(ssl.create_default_context().load_verify_locations(cafile=certifi.where()) or 'OK')""  
+     pip install boto3  
+
+3. EXPLANATION  
+By default on Windows some Python builds don’t ship with a root‐CA bundle or don’t point OpenSSL at it. Downloading a current “cacert.pem” and setting SSL_CERT_FILE/REQUESTS_CA_BUNDLE ensures OpenSSL (and requests/pip/boto3) use that file to verify server certificates, eliminating the CERTIFICATE_VERIFY_FAILED error.",2,have code right but not have explain clear
+Q02,debugging,"I'm working on scripts to connect to AWS from Win10. When I try to install a python module or execute a script I get the following error:
+
+[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1129)
+I've verified that the certificate in the environment path is defined so, besides that, I'm not sure what else to use to troubleshoot the issue.
+","Try this in the command line:
+
+pip install pip-system-certs
+I've been struggling with the CERTIFICATE_VERIFY_FAILED error as well when using the requests module. I tried installing certifi but that didn't help. The only solution to my problem was to install pip-system-certs. For some reason that allowed requests to access a local certificate.
+
+Also: requests.get(url, verify=False) is not recommended for production environment because you basically turn safety off.",claude-sonnet-4-6,"## DIAGNOSIS
+This error occurs because Python's SSL module cannot verify the certificate chain, typically because your corporate/organizational network uses a custom CA certificate (often via a proxy or firewall doing SSL inspection) that Python doesn't trust.
+
+---
+
+## SOLUTION
+
+Try these fixes in order:
+
+### Fix 1: Add your corporate CA cert to the `certifi` bundle
+```python
+# Find where certifi stores its CA bundle
+import certifi
+print(certifi.where())
+```
+Then append your corporate CA certificate (`.pem` or `.crt`) to that file, or set the env variable:
+
+```powershell
+# In PowerShell or System Environment Variables
+$env:REQUESTS_CA_BUNDLE = ""C:\path\to\your\corporate-cert.pem""
+$env:SSL_CERT_FILE = ""C:\path\to\your\corporate-cert.pem""
+```
+
+---
+
+### Fix 2: Configure pip to use your cert
+```powershell
+pip install <package> --cert ""C:\path\to\your\corporate-cert.pem""
+
+# Or set it permanently in pip config
+pip config set global.cert ""C:\path\to\your\corporate-cert.pem""
+```
+
+---
+
+### Fix 3: Configure AWS CLI to use your cert
+```powershell
+# In PowerShell profile or System Environment Variables
+$env:AWS_CA_BUNDLE = ""C:\path\to\your\corporate-cert.pem""
+```
+Or in `~/.aws/config`:
+```ini
+[default]
+ca_bundle = C:\path\to\your\corporate-cert.pem
+```
+
+---
+
+### Fix 4: Export the corporate cert from Windows (if you don't have the .pem file)
+```powershell
+# Export from Windows cert store to PEM format
+$cert = Get-ChildItem -Path Cert:\LocalMachine\Root | Where-Object { $_.Subject -like ""*YourCorpName*"" }
+$cert | Export-Certificate -FilePath ""C:\corp-cert.cer"" -Type CERT
+
+# Convert .cer to .pem (run in PowerShell or use openssl)
+certutil -encode C:\corp-cert.cer C:\corp-cert.pem
+```
+
+---
+
+### Fix 5: Use Windows cert store with pip (quick workaround)
+```powershell
+pip install pip-system-certs
+# This makes pip use Windows' trusted certificate store automatically
+```
+
+---
+
+## EXPLANATION
+
+Corporate networks often use **SSL inspection proxies** (like Zscaler, Cisco Umbrella, etc.) that intercept HTTPS traffic and re-sign certificates using an internal CA. Python doesn't know to trust this internal CA because it maintains its own certificate bundle (via `certifi`) separate from Windows' trusted certificates.
+
+The fix is to either:
+1. Point Python/pip/AWS CLI to your corporate CA cert explicitly
+2. Append it to Python's trusted cert bundle
+3. Use `pip-system-certs` to bridge Python with Windows' certificate store
+
+**To get your corporate cert file**, check with your IT/security team — they should be able to provide the `.pem` or `.crt` file directly.",3,have code right and explain clear
+Q02,debugging,"I'm working on scripts to connect to AWS from Win10. When I try to install a python module or execute a script I get the following error:
+
+[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1129)
+I've verified that the certificate in the environment path is defined so, besides that, I'm not sure what else to use to troubleshoot the issue.
+","Try this in the command line:
+
+pip install pip-system-certs
+I've been struggling with the CERTIFICATE_VERIFY_FAILED error as well when using the requests module. I tried installing certifi but that didn't help. The only solution to my problem was to install pip-system-certs. For some reason that allowed requests to access a local certificate.
+
+Also: requests.get(url, verify=False) is not recommended for production environment because you basically turn safety off.",llama4-scout,"1. **DIAGNOSIS**: The error `[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1129)` typically occurs when the Python interpreter is unable to verify the SSL certificate of the server it's trying to connect to, in this case, AWS. This often happens because the system's certificate store or the Python environment's certificate configuration is not properly set up.
+
+2. **SOLUTION**: You can resolve this issue by updating the certificates in your Python environment. A straightforward approach is to use the `certifi` library, which provides a set of root certificates that are known to be trusted.
+
+    You can install `certifi` using pip:
+    ```bash
+pip install certifi
+```
+
+    Then, when making HTTPS requests, specify the path to the `certifi` certificates:
+
+    ```python
+import certifi
+import ssl
+import urllib.request
+
+# Specify the path to the certifi certificates
+context = ssl.create_default_context(cafile=certifi.where())
+
+try:
+    with urllib.request.urlopen(""https://aws.amazon.com"", context=context) as response:
+        print(response.read().decode())
+except Exception as e:
+    print(e)
+```
+
+3. **EXPLANATION**: The `certifi` library provides a set of trusted root certificates that are used to verify the identity of servers. By specifying the path to these certificates when creating the SSL context, you ensure that the Python interpreter can properly verify the SSL certificates of the servers it's connecting to, thus avoiding the `[SSL: CERTIFICATE_VERIFY_FAILED]` error. This approach is particularly useful in environments where the system's certificate store is not well-maintained or when working with Python environments that do not have access to the system's certificate store.",2,have code right but not have explain clear
+Q03,conceptual,"OpenAI's text models have a context length, e.g.: Curie has a context length of 2049 tokens.
+
+They provide max_tokens and stop parameters to control the length of the generated sequence. Therefore the generation stops either when stop token is obtained, or max_tokens is reached.
+
+The issue is: when generating a text, I don't know how many tokens my prompt contains. Since I do not know that, I cannot set max_tokens = 2049 - number_tokens_in_prompt.
+
+This prevents me from generating text dynamically for a wide range of text in terms of their length. What I need is to continue generating until the stop token.
+
+My questions are:
+
+How can I count the number of tokens in Python API so that I will set max_tokens parameter accordingly?
+Is there a way to set max_tokens to the max cap so that I won't need to count the number of prompt tokens?","As stated in the offic
+Given a text string (e.g., ""tiktoken is great!"") and an encoding (e.g., ""cl100k_base""), a tokenizer can split the text string into a list of tokens (e.g., [""t"", ""ik"", ""token"", "" is"", "" great"", ""!""]).
+
+Splitting text strings into tokens is useful because GPT models see text in the form of tokens. Knowing how many tokens are in a text string can tell you:
+
+whether the string is too long for a text model to process and
+how much an OpenAI API call costs (as usage is priced by token).
+Which encodings does OpenAI use for its models?
+As of April 2024, tiktoken supports 2 encodings used by OpenAI models (source 1, source 2):
+
+Encoding name	OpenAI models
+o200k_base	 GPT-4o models (gpt-4o)
+cl100k_base	 GPT-4 models (gpt-4)
+ GPT-3.5 Turbo models (gpt-3.5-turbo)
+ GPT Base models (davinci-002, babbage-002)
+ Embeddings models (text-embedding-ada-002, text-embedding-3-large, text-embedding-3-small)
+ Fine-tuned models (ft:gpt-4, ft:gpt-3.5-turbo, ft:davinci-002, ft:babbage-002)
+Note: The p50k_base and r50k_base encodings were used for models that are deprecated as of April 2024.
+
+What tokenizer libraries are out there?
+Official OpenAI libraries:
+
+Python: tiktoken
+3rd-party libraries:
+
+Python: GPT2TokenizerFast
+Node.js: tiktoken, gpt4-tokenizer, gpt3-tokenizer, gpt-3-encoder
+.NET / C#: tryAGI.Tiktoken, SharpToken, TiktokenSharp, GPT Tokenizer
+Java: jtokkit, gpt2-tokenizer-java
+PHP: GPT-3-Encoder-PHP
+How do I use tiktoken?
+Install or upgrade tiktoken: pip install --upgrade tiktoken
+Write the code to count tokens, where you have two options.
+OPTION 1: Search in the table above for the correct encoding for a given OpenAI model
+
+If you run get_tokens_1.py, you'll get the following output:
+
+9
+
+get_tokens_1.py
+
+import tiktoken
+
+def num_tokens_from_string(string: str, encoding_name: str) -> int:
+    encoding = tiktoken.get_encoding(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
+print(num_tokens_from_string(""Hello world, let's test tiktoken."", ""cl100k_base""))
+
+OPTION 2: Use tiktoken.encoding_for_model() to automatically load the correct encoding for a given OpenAI model
+
+If you run get_tokens_2.py, you'll get the following output:
+
+9
+
+get_tokens_2.py
+
+import tiktoken
+
+def num_tokens_from_string(string: str, encoding_name: str) -> int:
+    encoding = tiktoken.encoding_for_model(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
+print(num_tokens_from_string(""Hello world, let's test tiktoken."", ""gpt-3.5-turbo""))
+Note: If you take a careful look at the usage field in the OpenAI API response, you'll see that it reports 10 tokens used for an identical message. That's 1 token more than tiktoken. I still haven't figured out why. I tested this in the past. As @Jota mentioned in the comment below, there still seems to be a mismatch between the token usage reported by the OpenAI API response and tiktoken.",o4-mini,"DIAGNOSIS  
+You can’t avoid supplying a sensible `max_tokens` total (prompt + completion) or you’ll hit the “context length exceeded” error. To know how many tokens your prompt already uses you must count them; there is no “use the maximum remaining” flag in the API.
+
+SOLUTION  
+1. Install and use OpenAI’s tiktoken library to count prompt tokens.  
+2. Subtract that from your model’s context limit and pass the result as `max_tokens`.  
+
+Example:
+
+```bash
+pip install openai tiktoken
+```
+
+```python
+import openai
+import tiktoken
+
+openai.api_key = ""YOUR_API_KEY""
+
+def count_tokens(text: str, model: str = ""text-curie-001"") -> int:
+    # tiktoken will pick the right encoding for your model
+    enc = tiktoken.encoding_for_model(model)
+    return len(enc.encode(text))
+
+def generate_with_full_budget(
+    prompt: str,
+    model: str = ""text-curie-001"",
+    stop: list[str] | None = None
+):
+    # Curie’s total context = 2049 tokens
+    CONTEXT_LIMIT = 2049
+
+    prompt_token_count = count_tokens(prompt, model)
+    max_tokens = CONTEXT_LIMIT - prompt_token_count
+    if max_tokens < 1:
+        raise ValueError(f""Prompt is too long by {-max_tokens} tokens."")
+
+    resp = openai.Completion.create(
+        model=model,
+        prompt=prompt,
+        max_tokens=max_tokens,
+        stop=stop
+    )
+    return resp.choices[0].text
+
+# Usage
+prompt = ""Once upon a time...""
+print(generate_with_full_budget(prompt))
+```
+
+EXPLANATION  
+- tiktoken.encoding_for_model(model) gives you the exact byte-pair encoding for that model.  
+- `.encode(text)` returns a list of token IDs; its length is your token count.  
+- Subtracting from the model’s hard limit (2049 for Curie) ensures you never exceed the context window so generation can run until your stop sequence.  
+- There is no built-in “use all remaining tokens” flag, so this counting step is required to avoid errors.",3,have code right and explain clear
+Q03,conceptual,"OpenAI's text models have a context length, e.g.: Curie has a context length of 2049 tokens.
+
+They provide max_tokens and stop parameters to control the length of the generated sequence. Therefore the generation stops either when stop token is obtained, or max_tokens is reached.
+
+The issue is: when generating a text, I don't know how many tokens my prompt contains. Since I do not know that, I cannot set max_tokens = 2049 - number_tokens_in_prompt.
+
+This prevents me from generating text dynamically for a wide range of text in terms of their length. What I need is to continue generating until the stop token.
+
+My questions are:
+
+How can I count the number of tokens in Python API so that I will set max_tokens parameter accordingly?
+Is there a way to set max_tokens to the max cap so that I won't need to count the number of prompt tokens?","As stated in the offic
+Given a text string (e.g., ""tiktoken is great!"") and an encoding (e.g., ""cl100k_base""), a tokenizer can split the text string into a list of tokens (e.g., [""t"", ""ik"", ""token"", "" is"", "" great"", ""!""]).
+
+Splitting text strings into tokens is useful because GPT models see text in the form of tokens. Knowing how many tokens are in a text string can tell you:
+
+whether the string is too long for a text model to process and
+how much an OpenAI API call costs (as usage is priced by token).
+Which encodings does OpenAI use for its models?
+As of April 2024, tiktoken supports 2 encodings used by OpenAI models (source 1, source 2):
+
+Encoding name	OpenAI models
+o200k_base	 GPT-4o models (gpt-4o)
+cl100k_base	 GPT-4 models (gpt-4)
+ GPT-3.5 Turbo models (gpt-3.5-turbo)
+ GPT Base models (davinci-002, babbage-002)
+ Embeddings models (text-embedding-ada-002, text-embedding-3-large, text-embedding-3-small)
+ Fine-tuned models (ft:gpt-4, ft:gpt-3.5-turbo, ft:davinci-002, ft:babbage-002)
+Note: The p50k_base and r50k_base encodings were used for models that are deprecated as of April 2024.
+
+What tokenizer libraries are out there?
+Official OpenAI libraries:
+
+Python: tiktoken
+3rd-party libraries:
+
+Python: GPT2TokenizerFast
+Node.js: tiktoken, gpt4-tokenizer, gpt3-tokenizer, gpt-3-encoder
+.NET / C#: tryAGI.Tiktoken, SharpToken, TiktokenSharp, GPT Tokenizer
+Java: jtokkit, gpt2-tokenizer-java
+PHP: GPT-3-Encoder-PHP
+How do I use tiktoken?
+Install or upgrade tiktoken: pip install --upgrade tiktoken
+Write the code to count tokens, where you have two options.
+OPTION 1: Search in the table above for the correct encoding for a given OpenAI model
+
+If you run get_tokens_1.py, you'll get the following output:
+
+9
+
+get_tokens_1.py
+
+import tiktoken
+
+def num_tokens_from_string(string: str, encoding_name: str) -> int:
+    encoding = tiktoken.get_encoding(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
+print(num_tokens_from_string(""Hello world, let's test tiktoken."", ""cl100k_base""))
+
+OPTION 2: Use tiktoken.encoding_for_model() to automatically load the correct encoding for a given OpenAI model
+
+If you run get_tokens_2.py, you'll get the following output:
+
+9
+
+get_tokens_2.py
+
+import tiktoken
+
+def num_tokens_from_string(string: str, encoding_name: str) -> int:
+    encoding = tiktoken.encoding_for_model(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
+print(num_tokens_from_string(""Hello world, let's test tiktoken."", ""gpt-3.5-turbo""))
+Note: If you take a careful look at the usage field in the OpenAI API response, you'll see that it reports 10 tokens used for an identical message. That's 1 token more than tiktoken. I still haven't figured out why. I tested this in the past. As @Jota mentioned in the comment below, there still seems to be a mismatch between the token usage reported by the OpenAI API response and tiktoken.",claude-sonnet-4-6,"## DIAGNOSIS
+You need to know the token count of your prompt to avoid exceeding the model's context length, and OpenAI's API doesn't automatically handle this for you.
+
+---
+
+## SOLUTION
+
+### 1. Count Tokens Using `tiktoken` (OpenAI's Official Tokenizer)
+
+```python
+import tiktoken
+import openai
+
+def count_tokens(text: str, model: str = ""text-curie-001"") -> int:
+    """"""Count the number of tokens in a text string.""""""
+    encoding = tiktoken.encoding_for_model(model)
+    return len(encoding.encode(text))
+
+def get_max_tokens(prompt: str, model: str = ""text-curie-001"") -> int:
+    """"""Calculate the remaining tokens available for generation.""""""
+    
+    context_length = {
+        ""text-curie-001"": 2049,
+        ""text-davinci-003"": 4097,
+        ""text-babbage-001"": 2049,
+        ""text-ada-001"": 2049,
+        ""gpt-3.5-turbo"": 4096,
+        ""gpt-4"": 8192,
+    }
+    
+    model_context_length = context_length.get(model, 2049)
+    prompt_tokens = count_tokens(prompt, model)
+    remaining_tokens = model_context_length - prompt_tokens
+    
+    return remaining_tokens
+
+# Example usage
+prompt = ""Once upon a time in a land far away""
+model = ""text-curie-001""
+
+max_tokens = get_max_tokens(prompt, model)
+print(f""Prompt tokens: {count_tokens(prompt, model)}"")
+print(f""Max tokens available for generation: {max_tokens}"")
+
+response = openai.Completion.create(
+    model=model,
+    prompt=prompt,
+    max_tokens=max_tokens,
+    stop=None  # or your stop sequence
+)
+```
+
+---
+
+### 2. Install `tiktoken`
+```bash
+pip install tiktoken
+```
+
+---
+
+### 3. Full Dynamic Generation Wrapper
+
+```python
+import tiktoken
+import openai
+
+CONTEXT_LENGTHS = {
+    ""text-curie-001"": 2049,
+    ""text-davinci-003"": 4097,
+    ""text-babbage-001"": 2049,
+    ""text-ada-001"": 2049,
+    ""gpt-3.5-turbo"": 4096,
+    ""gpt-4"": 8192,
+}
+
+def generate_text(prompt: str, model: str = ""text-curie-001"", stop: list = None) -> str:
+    encoding = tiktoken.encoding_for_model(model)
+    prompt_token_count = len(encoding.encode(prompt))
+    
+    context_length = CONTEXT_LENGTHS.get(model, 2049)
+    max_tokens = context_length - prompt_token_count
+    
+    if max_tokens <= 0:
+        raise ValueError(f""Prompt is too long! It uses {prompt_token_count} tokens, ""
+                         f""which exceeds the context length of {context_length}."")
+    
+    print(f""Prompt tokens: {prompt_token_count}, Generating up to {max_tokens} tokens"")
+    
+    response = openai.Completion.create(
+        model=model,
+        prompt=prompt,
+        max_tokens=max_tokens,
+        stop=stop
+    )
+    
+    return response.choices[0].text
+
+# Usage
+result = generate_text(
+    prompt=""Write a short story about a robot:"",
+    model=""text-curie-001"",
+    stop=[""\n\n""]  # Stop at double newline
+)
+print(result)
+```
+
+---
+
+## EXPLANATION
+
+| Question | Answer |
+|----------|--------|
+| **How to count tokens?** | Use `tiktoken`, OpenAI's own tokenizer library. It exactly replicates how OpenAI counts tokens server-side. |
+| **Can I just set max_tokens to max cap?** | No — `max_tokens` refers to **generated tokens only**, not total. So you must subtract prompt tokens manually. |
+
+**Key formula:**
+```
+max_tokens = model_context_length - prompt_token_count
+```",3,have code right and explain clear
+Q03,conceptual,"OpenAI's text models have a context length, e.g.: Curie has a context length of 2049 tokens.
+
+They provide max_tokens and stop parameters to control the length of the generated sequence. Therefore the generation stops either when stop token is obtained, or max_tokens is reached.
+
+The issue is: when generating a text, I don't know how many tokens my prompt contains. Since I do not know that, I cannot set max_tokens = 2049 - number_tokens_in_prompt.
+
+This prevents me from generating text dynamically for a wide range of text in terms of their length. What I need is to continue generating until the stop token.
+
+My questions are:
+
+How can I count the number of tokens in Python API so that I will set max_tokens parameter accordingly?
+Is there a way to set max_tokens to the max cap so that I won't need to count the number of prompt tokens?","As stated in the offic
+Given a text string (e.g., ""tiktoken is great!"") and an encoding (e.g., ""cl100k_base""), a tokenizer can split the text string into a list of tokens (e.g., [""t"", ""ik"", ""token"", "" is"", "" great"", ""!""]).
+
+Splitting text strings into tokens is useful because GPT models see text in the form of tokens. Knowing how many tokens are in a text string can tell you:
+
+whether the string is too long for a text model to process and
+how much an OpenAI API call costs (as usage is priced by token).
+Which encodings does OpenAI use for its models?
+As of April 2024, tiktoken supports 2 encodings used by OpenAI models (source 1, source 2):
+
+Encoding name	OpenAI models
+o200k_base	 GPT-4o models (gpt-4o)
+cl100k_base	 GPT-4 models (gpt-4)
+ GPT-3.5 Turbo models (gpt-3.5-turbo)
+ GPT Base models (davinci-002, babbage-002)
+ Embeddings models (text-embedding-ada-002, text-embedding-3-large, text-embedding-3-small)
+ Fine-tuned models (ft:gpt-4, ft:gpt-3.5-turbo, ft:davinci-002, ft:babbage-002)
+Note: The p50k_base and r50k_base encodings were used for models that are deprecated as of April 2024.
+
+What tokenizer libraries are out there?
+Official OpenAI libraries:
+
+Python: tiktoken
+3rd-party libraries:
+
+Python: GPT2TokenizerFast
+Node.js: tiktoken, gpt4-tokenizer, gpt3-tokenizer, gpt-3-encoder
+.NET / C#: tryAGI.Tiktoken, SharpToken, TiktokenSharp, GPT Tokenizer
+Java: jtokkit, gpt2-tokenizer-java
+PHP: GPT-3-Encoder-PHP
+How do I use tiktoken?
+Install or upgrade tiktoken: pip install --upgrade tiktoken
+Write the code to count tokens, where you have two options.
+OPTION 1: Search in the table above for the correct encoding for a given OpenAI model
+
+If you run get_tokens_1.py, you'll get the following output:
+
+9
+
+get_tokens_1.py
+
+import tiktoken
+
+def num_tokens_from_string(string: str, encoding_name: str) -> int:
+    encoding = tiktoken.get_encoding(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
+print(num_tokens_from_string(""Hello world, let's test tiktoken."", ""cl100k_base""))
+
+OPTION 2: Use tiktoken.encoding_for_model() to automatically load the correct encoding for a given OpenAI model
+
+If you run get_tokens_2.py, you'll get the following output:
+
+9
+
+get_tokens_2.py
+
+import tiktoken
+
+def num_tokens_from_string(string: str, encoding_name: str) -> int:
+    encoding = tiktoken.encoding_for_model(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
+print(num_tokens_from_string(""Hello world, let's test tiktoken."", ""gpt-3.5-turbo""))
+Note: If you take a careful look at the usage field in the OpenAI API response, you'll see that it reports 10 tokens used for an identical message. That's 1 token more than tiktoken. I still haven't figured out why. I tested this in the past. As @Jota mentioned in the comment below, there still seems to be a mismatch between the token usage reported by the OpenAI API response and tiktoken.",llama4-scout,"1. DIAGNOSIS: The core problem is that you need to dynamically set the `max_tokens` parameter based on the length of the prompt to prevent exceeding the context length, while also relying on the `stop` token to control generation.
+
+2. SOLUTION: 
+
+To count the number of tokens in the prompt, you can use the `encoding` library provided by the OpenAI API. Here is a sample Python code snippet:
+
+```python
+import openai
+
+def count_tokens(text):
+    encoding = openai.encoding_for_model(""curie"")
+    return len(encoding.encode(text))
+
+prompt = ""Your prompt text here""
+prompt_tokens = count_tokens(prompt)
+max_tokens = 2049 - prompt_tokens
+
+response = openai.Completion.create(
+    model=""curie"",
+    prompt=prompt,
+    max_tokens=max_tokens,
+    stop=[""stop_token""]
+)
+```
+
+As for setting `max_tokens` to the maximum cap, you can simply set `max_tokens` to the context length (2049 for Curie) and rely on the `stop` token to control generation. OpenAI's API will automatically stop generating once it reaches the context length or encounters the `stop` token.
+
+```python
+response = openai.Completion.create(
+    model=""curie"",
+    prompt=prompt,
+    max_tokens=2049,
+    stop=[""stop_token""]
+)
+```
+
+3. EXPLANATION: 
+
+The `encoding_for_model` function returns an encoding object that can be used to convert text into a list of tokens. By encoding the prompt text, you can count the number of tokens and adjust `max_tokens` accordingly.
+
+By setting `max_tokens` to the context length, you ensure that the model will generate text until it reaches the context length or encounters the `stop` token, whichever comes first. This approach allows you to dynamically generate text without having to count the number of tokens in the prompt. However, be aware that if the prompt is very long, you might not get as much generated text as you would like, since the context length is fixed.",3,have code right and explain clear
